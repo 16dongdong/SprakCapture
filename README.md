@@ -16,10 +16,6 @@ Sprak Capture 是面向 Windows 的开源网络调试工作台，使用 Rust、R
 - WebSocket/SSE 实时事件、MCP 控制接口与 Tauri 桌面客户端
 - 配置、规则和进程路径持久化；正文采用内存预算与磁盘 spill 管理
 
-## 界面与设计
-
-项目文档参考 [Winsock Packet Editor](https://github.com/x-nas/WinsockPacketEditor/tree/Develop) 的“简介、特性、使用方式、构建方式”组织，但 Sprak Capture 使用独立实现：代理与 WinDivert 流量统一进入同一处理阶段，界面通过实时事件增量更新。
-
 ## 仓库结构
 
 ```text
