@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-//! 为 Rust 插件作者封装 Sprak Capture Native ABI v2、阶段事件、动作和二进制分帧。
+//! 为 Rust 插件作者封装 Sprak Capture Native ABI、阶段事件、动作和二进制分帧。
 //!
 //! 作者只需构造 [`Plugin`] 并用 [`exportPlugin!`] 导出工厂。SDK 负责校验 ABI、解析 JSON、
 //! 捕获跨 FFI panic、管理停止/销毁生命周期以及恰好一次释放宿主读取后的输出缓冲区。
@@ -16,7 +16,7 @@ pub use protocol::{
     Action, ActionKind, BinaryEvent, EventEnvelope, Invocation, Stage, StageContext,
 };
 
-/// 为插件工厂生成固定的 `capture_extension_init` Native ABI v2 导出入口。
+/// 为插件工厂生成固定的 `capture_extension_init` Native ABI 导出入口。
 ///
 /// 工厂可以是普通函数或无捕获闭包，签名为
 /// `fn(InitContext) -> Result<Plugin, PluginError>`。宏生成的入口不允许 panic 穿越 C ABI；

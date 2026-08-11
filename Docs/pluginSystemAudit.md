@@ -13,7 +13,7 @@
 - SOCKS5 TCP/UDP 与未解密 CONNECT 隧道接入 legacy 流回调。
 - 完整 manifest 的严格结构模型，包括开放运行时、模块、34 个稳定阶段、动作、自由能力说明、匹配、作者运行说明、依赖和贡献点；插件作者可选择进程内 Native、工作进程、Sidecar 或 Wasm。
 - `ExtensionKernel` 的预编译匹配计划、稳定排序、用户覆盖、结构化修改链、失败策略、服务/录制代际和固定容量调用追踪；开放可信模式不执行能力授权、调用超时、事件队列、输出配额或自动熔断。
-- `ProcessExtensionRuntime` 已把 Python、TypeScript、Go 和任意独立程序接入 Sidecar/Native Worker JSONL v2；并发请求用 requestId 归并，宿主不施加超时、并发或输出限制。
+- `ProcessExtensionRuntime` 已把 Python、TypeScript、Go 和任意独立程序接入 Sidecar/Native Worker JSONL；并发请求用 requestId 归并，宿主不施加超时、并发或输出限制。
 - `Server/PluginSDK/` 提供 C++、Rust、Go、Python、TypeScript 的函数式作者 API、示例、构建文件和契约测试。
 - 宿主级 `extensionPlatform.json`，完整持久化启停、活动版本、模块顺序、订阅覆盖、失败策略、作者运行说明、配置 Schema 版本、配置正文和秘密引用；更新使用同步临时文件与原子替换。
 - 进程内 Native 完整 Mod 生产加载器，以及 SOCKS5 TCP/UDP、CONNECT 隧道的 `TcpChunk`、`UdpDatagram`、`ConnectionClosing` 阶段接线。
@@ -34,7 +34,7 @@
 | UI | 只有插件管理页 | 设置、命令、检查器页签、上下文动作、状态项 |
 | 运行时 | 统一运行时接口，以及 Native、Sidecar、Native Worker 生产适配器已完成 | Wasm 生产适配器 |
 | 能力说明 | manifest 能力清单与用户配置已持久化；开放可信模式不把能力清单作为运行门禁 | 管理页展示接口使用范围与调用诊断 |
-| 顺序 | manifest v2 与 ExtensionKernel 已支持用户排序、匹配覆盖和执行痕迹；legacy 仍使用 priority | 全部数据面迁移到统一计划 |
+| 顺序 | 插件清单 与 ExtensionKernel 已支持用户排序、匹配覆盖和执行痕迹；legacy 仍使用 priority | 全部数据面迁移到统一计划 |
 | 状态 | 连接私有内存值 | 作者自管容量且可迁移的持久存储 |
 | 诊断 | 调用、延迟、输入输出大小、动作、错误和实例并发快照已完成 | 运行时日志、长期指标与诊断包 |
 | 分发 | 安装/卸载基础 | 签名、来源、依赖、更新、锁文件和回滚 |

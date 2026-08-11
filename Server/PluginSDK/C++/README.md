@@ -1,6 +1,6 @@
 # C++ Native 插件 SDK
 
-该 SDK 封装 Native ABI v2。插件作者不需要接触 C 指针、JSON 文本拼接、输出释放函数或固定导出表。
+该 SDK 封装 Native ABI。插件作者不需要接触 C 指针、JSON 文本拼接、输出释放函数或固定导出表。
 
 ## 最小插件
 

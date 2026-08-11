@@ -1,4 +1,4 @@
-// Command sprak-plugin-gen 为 Go c-shared 插件生成固定 Native ABI v2 桥接文件。
+// Command sprak-plugin-gen 为 Go c-shared 插件生成固定 Native ABI 桥接文件。
 package main
 
 import (
@@ -20,7 +20,7 @@ func main() {
 		PackageName:     *packageName,
 		SDKImportPath:   *importPath,
 	}); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "生成 Native ABI v2 桥失败：%v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "生成 Native ABI 桥失败：%v\n", err)
 		os.Exit(1)
 	}
 }

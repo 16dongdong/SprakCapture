@@ -1,7 +1,7 @@
 # Rust Native 改写示例
 
 `src/lib.rs` 只注册一个普通函数和事件闭包。`exportPlugin!` 生成固定
-`capture_extension_init`，SDK 负责 ABI v2、JSON、释放和生命周期。
+`capture_extension_init`，SDK 负责 ABI、JSON、释放和生命周期。
 
 ```powershell
 cargo build --release -p rust-native-rewrite-example

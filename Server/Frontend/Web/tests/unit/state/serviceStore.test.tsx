@@ -228,6 +228,7 @@ function createControlClient(
     startService: async () => snapshot,
     stopService: async () => snapshot,
     updateConfiguration,
+    updateMcpConfiguration: async () => snapshot,
     getProcesses: async () => ({
       enabled: false,
       selectedPaths: [],

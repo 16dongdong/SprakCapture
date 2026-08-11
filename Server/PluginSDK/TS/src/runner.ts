@@ -1,4 +1,4 @@
-/** 将 Node 标准输入的 Sidecar JSONL v2 映射到普通插件函数。 */
+/** 将 Node 标准输入的 Sidecar JSONL 映射到普通插件函数。 */
 
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";

@@ -1,4 +1,4 @@
-// Package pluginsdk 封装 Sprak Capture 插件 ABI v2 的事件、动作、生命周期和运行时入口。
+// Package pluginsdk 封装 Sprak Capture 插件 ABI 的事件、动作、生命周期和运行时入口。
 package pluginsdk
 
 import (
@@ -14,7 +14,7 @@ import (
 
 const nativeAPIVersion uint32 = 2
 
-// Stage 标识宿主发布的稳定处理阶段；字符串值与 ABI v2 JSON 完全一致。
+// Stage 标识宿主发布的稳定处理阶段；字符串值与 ABI JSON 完全一致。
 type Stage string
 
 const (
@@ -342,7 +342,7 @@ func loadRuntime(id uint64) (*runtimeInstance, error) {
 	return runtime, nil
 }
 
-// invokeRuntime 解析并执行一次 ABI v2 调用；停止态与错误 EventID 均拒绝序列化。
+// invokeRuntime 解析并执行一次 ABI 调用；停止态与错误 EventID 均拒绝序列化。
 func invokeRuntime(id uint64, request []byte) ([]byte, error) {
 	return invokeRuntimeWithContext(context.Background(), id, request)
 }

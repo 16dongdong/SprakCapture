@@ -61,12 +61,12 @@ class SdkTests(unittest.TestCase):
         self.assertEqual(second.patch[0]["value"]["bytes"], [0, 3, 65, 66, 67])
 
     def testManifestDeclaresSidecarEntry(self) -> None:
-        """验证构造器输出宿主将接入的 sidecar/.py/JSONL v2 模型。"""
+        """验证构造器输出宿主将接入的 sidecar/.py/JSONL 模型。"""
         manifest = ManifestBuilder("example.python", "示例", "1.0.0", "example").module("traffic", "trafficHandler", Stage.UDP_DATAGRAM).build("plugin.py")
         self.assertEqual(manifest["runtime"]["kind"], "sidecar")
         self.assertEqual(manifest["runtime"]["protocolVersion"], "2.0")
 
-    def testRunnerImplementsJsonlVersionTwo(self) -> None:
+    def testRunnerImplementsCurrentJsonlProtocol(self) -> None:
         """以真实子进程验证 initialize、invoke、stop 的逐行刷新和请求关联。"""
         environment = dict(os.environ)
         sourceRoot = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))

@@ -1,6 +1,6 @@
 # Sprak Capture Rust Plugin SDK
 
-该 crate 对接宿主现有 Native ABI v2。插件作者只需要：
+该 crate 对接宿主现有 Native ABI。插件作者只需要：
 
 1. 用普通函数或闭包构造 `Plugin`；
 2. 对 `Invocation` 返回 `Action`；

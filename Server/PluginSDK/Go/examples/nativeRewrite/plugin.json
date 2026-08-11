@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "example.go-native-rewrite",
   "name": "Go 二进制流改写示例",
-  "description": "使用生成的 Go c-shared Native ABI v2 桥修改 TCP 与 UDP 负载。",
+  "description": "使用生成的 Go c-shared Native ABI 桥修改 TCP 与 UDP 负载。",
   "version": "1.0.0",
   "publisher": "examples",
   "engines": { "host": ">=1.0.0", "api": "2.x" },

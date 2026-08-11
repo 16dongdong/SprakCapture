@@ -1,6 +1,6 @@
 # Go JSONL Worker 示例
 
-该示例只注册普通工厂与处理闭包，`RunJSONL` 负责 ABI v2 的 initialize、invoke、stop、
+该示例只注册普通工厂与处理闭包，`RunJSONL` 负责 ABI 的 initialize、invoke、stop、
 数字 `requestId` 回传和生命周期顺序。
 
 ```powershell

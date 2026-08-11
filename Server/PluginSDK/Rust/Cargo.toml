@@ -2,7 +2,7 @@
 name = "sprak-plugin-sdk"
 version = "0.1.0"
 edition = "2024"
-description = "Sprak Capture Native ABI v2 插件 SDK"
+description = "Sprak Capture Native ABI 插件 SDK"
 license = "MIT"
 publish = false
 

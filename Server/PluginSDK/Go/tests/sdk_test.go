@@ -352,7 +352,7 @@ func TestBridgeGenerator(t *testing.T) {
 	}
 	if !bytes.Contains(exportBytes, []byte("//export capture_extension_init")) ||
 		!bytes.Contains(exportBytes, []byte("goCaptureInvoke")) {
-		t.Fatalf("生成桥缺少 ABI v2 导出")
+		t.Fatalf("生成桥缺少 ABI 导出")
 	}
 }
 

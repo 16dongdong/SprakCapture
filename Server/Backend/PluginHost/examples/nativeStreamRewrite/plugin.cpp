@@ -60,7 +60,7 @@ void onConnectionClose(void *context, const StreamConnectionCloseEvent *event) {
 
 } // namespace
 
-/// 初始化 ABI v1 导出表；仅在宿主和请求版本完全匹配时创建上下文，避免不兼容调用进入流量路径。
+/// 初始化 旧版 ABI 导出表；仅在宿主和请求版本完全匹配时创建上下文，避免不兼容调用进入流量路径。
 extern "C" STREAM_PLUGIN_EXPORT int32_t stream_plugin_init(
     const StreamHostFunctions *host,
     const StreamPluginInitRequest *request,

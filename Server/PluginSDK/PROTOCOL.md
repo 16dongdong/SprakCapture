@@ -1,9 +1,9 @@
-# Plugin SDK v2 线上协议
+# Plugin SDK 线上协议
 
 本文冻结所有语言 SDK 与宿主之间的两种生产契约。语言 SDK 可以提供更符合自身习惯的类、函数、装饰器
 或宏，但不得改变这里的字段、所有权和生命周期语义。
 
-## Native ABI v2
+## Native ABI
 
 动态库必须导出 C 符号：
 
@@ -48,7 +48,7 @@ struct CaptureExtensionExports {
 实例期缓冲，插件必须让它至少保持到下一次约定写入或 `destroy`，不得返回临时栈内存。`invoke` 可以被
 多个连接并发调用，同步策略由插件作者决定。宿主停止时按 `stop → destroy → unload` 调用。
 
-## Process JSONL v2
+## Process JSONL
 
 `sidecar` 与 `nativeWorker` 使用 UTF-8、每行一个 JSON 对象的双向协议。标准输入是 Host→worker，标准
 输出是 worker→Host。每帧写完必须换行并刷新；日志只能写标准错误。

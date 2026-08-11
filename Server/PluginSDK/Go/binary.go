@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-// ByteArray 强制二进制字节按 ABI v2 的 JSON 整数数组编码，而不是 Go 默认的 Base64 字符串。
+// ByteArray 强制二进制字节按 ABI 的 JSON 整数数组编码，而不是 Go 默认的 Base64 字符串。
 type ByteArray []byte
 
 // MarshalJSON 输出 `[0..255]` 数组；该格式与 Rust 宿主的 Vec<u8> 序列化完全一致。

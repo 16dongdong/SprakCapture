@@ -163,7 +163,13 @@
       "upstreamProxyPassword": "Password",
       "upstreamProxyPasswordSaved": "Saved; leave blank to keep unchanged",
       "upstreamProxyPasswordClear": "저장된 비밀번호 지우기",
-      "descriptionUpstreamProxy": "Configure the upstream proxy shared by HTTP and SOCKS5 outbound connections."
+      "descriptionUpstreamProxy": "Configure the upstream proxy shared by HTTP and SOCKS5 outbound connections.",
+      "mcpGroup": "MCP Integration",
+      "descriptionMcp": "Enable or disable the built-in MCP Streamable HTTP service without restarting proxy traffic.",
+      "mcpEnabled": "Enable MCP",
+      "mcpEnabledHint": "Listens on loopback only and persists with the installation data configuration.",
+      "mcpPort": "MCP port",
+      "mcpEndpoint": "Endpoint"
     },
     "processManager": {
       "title": "Process manager",

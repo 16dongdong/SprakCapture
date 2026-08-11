@@ -53,6 +53,7 @@ const settingsSections: readonly SettingsSection[] = [
   "listener",
   "upstreamProxy",
   "capacity",
+  "mcp",
 ];
 
 const seedHashOffset = 2_166_136_261;

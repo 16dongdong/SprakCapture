@@ -2,8 +2,8 @@
 
 Go SDK 同时支持：
 
-- `c-shared` Native ABI v2：作者只注册普通工厂/闭包，生成器封装固定导出入口与 C 内存释放；
-- JSONL v2 worker：`RunJSONL` 完整处理 initialize、invoke、result/error、stop 生命周期。
+- `c-shared` Native ABI：作者只注册普通工厂/闭包，生成器封装固定导出入口与 C 内存释放；
+- JSONL worker：`RunJSONL` 完整处理 initialize、invoke、result/error、stop 生命周期。
 
 ## Native 最小流程
 

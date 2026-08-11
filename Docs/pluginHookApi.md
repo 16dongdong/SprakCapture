@@ -2,7 +2,7 @@
 
 本文定义 Sprak Capture 完整插件/模块平台的公开开发契约。插件作者只依赖本文、SDK 和版本化 Schema，不依赖宿主内部 Rust 类型、私有路由或数据库结构。
 
-当前代码中的旧版 Native 流 ABI 是兼容适配层；新插件应使用 [`Server/PluginSDK`](../Server/PluginSDK/README.md) 提供的 Native ABI v2 或 Process JSONL v2。完整实现状态与迁移边界见 [插件系统现状与迁移审查](pluginSystemAudit.md)，系统架构见 [38 插件与模块系统](features/38-pluginSystem.md)，从创建到发布的工作流见 [插件与 Mod 开发者体验规范](pluginDeveloperGuide.md)。
+当前代码中的旧版 Native 流 ABI 是兼容适配层；新插件应使用 [`Server/PluginSDK`](../Server/PluginSDK/README.md) 提供的 Native ABI 或 Process JSONL。完整实现状态与迁移边界见 [插件系统现状与迁移审查](pluginSystemAudit.md)，系统架构见 [38 插件与模块系统](features/38-pluginSystem.md)，从创建到发布的工作流见 [插件与 Mod 开发者体验规范](pluginDeveloperGuide.md)。
 
 ## 1. 基本概念
 

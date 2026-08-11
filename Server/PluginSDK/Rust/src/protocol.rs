@@ -1,4 +1,4 @@
-//! 定义 Native ABI v2 的 JSON 事件与动作模型，并提供 TCP/UDP 二进制负载适配。
+//! 定义 Native ABI 的 JSON 事件与动作模型，并提供 TCP/UDP 二进制负载适配。
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

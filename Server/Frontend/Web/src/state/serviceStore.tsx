@@ -47,6 +47,7 @@ import {
   serviceSnapshotSchema,
   type MessageSide,
   type ConfigurationUpdate,
+  type McpConfiguration,
   type ExportRequest,
   type EventMessage,
   type MapLocalConfiguration,
@@ -91,6 +92,7 @@ type ControlActionScope =
   | "recording"
   | "recordingClear"
   | "configuration"
+  | "mcp"
   | "ssl"
   | "sslRoot"
   | "sslClientCertificate"
@@ -168,6 +170,7 @@ interface ServiceStoreValue extends ServiceStoreState {
   getAdvancedRepeat(jobId: string): Promise<AdvancedRepeatJob>;
   cancelAdvancedRepeat(jobId: string): Promise<AdvancedRepeatJob | null>;
   updateConfiguration(update: ConfigurationUpdate): Promise<void>;
+  updateMcpConfiguration(configuration: McpConfiguration): Promise<void>;
   getProcesses(signal?: AbortSignal): Promise<ProcessSelectionSnapshot>;
   updateProcessSelection(
     update: ProcessSelectionUpdate,
@@ -854,6 +857,27 @@ function useServiceMutations(
     [controlClient, coordinator, runtime],
   );
 
+  /** 独立切换 MCP 监听，不重启代理数据面；响应快照直接替换本窗口权威状态。 */
+  const updateMcpConfiguration = useCallback(
+    async (configuration: McpConfiguration) => {
+      const currentState = beginControlAction(runtime, "mcp", isControlActionReady);
+      if (currentState === null) {
+        return;
+      }
+      try {
+        coordinator.acceptSnapshot(
+          await controlClient.updateMcpConfiguration(configuration),
+          currentState.snapshot?.serverInstanceId,
+        );
+      } catch (error) {
+        runtime.dispatchAction({ type: "error", message: describeError(error) });
+      } finally {
+        finishControlAction(runtime, "mcp");
+      }
+    },
+    [controlClient, coordinator, runtime],
+  );
+
   /**
    * 实时提交 SSL 主机规则并重读完整快照；布尔结果让对话框只在成功后关闭。
    */
@@ -1367,6 +1391,7 @@ function useServiceMutations(
       toggleRecording,
       clearRecording,
       updateConfiguration,
+      updateMcpConfiguration,
       updateSsl,
       regenerateSslRoot,
       exportSslRoot,
@@ -1408,6 +1433,7 @@ function useServiceMutations(
       toggleRecording,
       toggleService,
       updateConfiguration,
+      updateMcpConfiguration,
       updateSsl,
       regenerateSslRoot,
       exportSslRoot,

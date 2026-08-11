@@ -353,6 +353,12 @@ export function createServiceSnapshot(
     },
     advancedRepeats: [],
     plugins: [],
+    mcp: {
+      configuration: { enabled: false, port: 17_891 },
+      running: false,
+      endpoint: null,
+      lastError: null,
+    },
     ...overrides,
   };
 }
@@ -430,6 +436,7 @@ export function createControlClientStub(
     startService: async () => snapshot,
     stopService: async () => snapshot,
     updateConfiguration: async () => snapshot,
+    updateMcpConfiguration: async () => snapshot,
     getProcesses: async () => ({
       enabled: false,
       selectedPaths: [],

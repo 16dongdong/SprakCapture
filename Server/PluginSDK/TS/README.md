@@ -15,9 +15,9 @@ plugin.on("udpDatagram", (event) =>
 await serve(plugin);
 ```
 
-TypeScript 先编译为 JavaScript。`plugin.json` 使用 `runtime.kind: "sidecar"`、`protocolVersion: "2.0"` 和相对 `.js`/`.mjs` 入口，生产 Host 按扩展名启动 Node，并通过冻结的 Sidecar JSONL v2 与 `serve(plugin)` 通信；JavaScript 不会被伪装成 Native DLL。
+TypeScript 先编译为 JavaScript。`plugin.json` 使用 `runtime.kind: "sidecar"`、`protocolVersion: "2.0"` 和相对 `.js`/`.mjs` 入口，生产 Host 按扩展名启动 Node，并通过冻结的 Sidecar JSONL 与 `serve(plugin)` 通信；JavaScript 不会被伪装成 Native DLL。
 
-## Sidecar JSONL v2
+## Sidecar JSONL
 
 - Host → worker：`initialize`、`invoke`、`stop`
 - worker → Host：`ready`、`result`、`error`

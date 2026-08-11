@@ -35,6 +35,20 @@ describe("控制协议校验", () => {
     expect(parsedSnapshot.transactions.items).toEqual([]);
   });
 
+  it("旧后端缺少 MCP 状态时仍可读取事务快照", () => {
+    const legacySnapshot = createServiceSnapshot();
+    Reflect.deleteProperty(legacySnapshot, "mcp");
+
+    const parsedSnapshot = serviceSnapshotSchema.parse(legacySnapshot);
+
+    expect(parsedSnapshot.mcp).toEqual({
+      configuration: { enabled: false, port: 17_891 },
+      running: false,
+      endpoint: null,
+      lastError: null,
+    });
+  });
+
   it("拒绝中文线状态和旧时间字段", () => {
     const invalidSession = {
       ...createSessionSnapshot(),

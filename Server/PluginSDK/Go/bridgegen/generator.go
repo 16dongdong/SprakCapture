@@ -1,4 +1,4 @@
-// Package bridgegen 生成 Go c-shared 插件所需的固定 Native ABI v2 导出入口。
+// Package bridgegen 生成 Go c-shared 插件所需的固定 Native ABI 导出入口。
 package bridgegen
 
 import (
@@ -229,7 +229,7 @@ void nativeContextFree(void *context) {
     free(context);
 }
 
-// 按宿主 ABI v2 固定字段顺序填充导出表。
+// 按宿主 ABI 固定字段顺序填充导出表。
 void nativeExportsSet(NativeExtensionExports *exports, void *context) {
     exports->apiVersion = 2;
     exports->pluginContext = context;

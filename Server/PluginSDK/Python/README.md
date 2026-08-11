@@ -17,9 +17,9 @@ if __name__ == "__main__":
     serve(plugin)
 ```
 
-`plugin.json` 使用 `runtime.kind: "sidecar"`、`protocolVersion: "2.0"` 和相对 `.py` 入口。生产 Host 按扩展名启动 Python，并通过冻结的 Sidecar JSONL v2 与 `serve(plugin)` 通信；`.py` 不会被伪装成 Native DLL。
+`plugin.json` 使用 `runtime.kind: "sidecar"`、`protocolVersion: "2.0"` 和相对 `.py` 入口。生产 Host 按扩展名启动 Python，并通过冻结的 Sidecar JSONL 与 `serve(plugin)` 通信；`.py` 不会被伪装成 Native DLL。
 
-## JSONL v2
+## JSONL
 
 - Host → worker：`initialize`、`invoke`、`stop`
 - worker → Host：`ready`、`result`、`error`

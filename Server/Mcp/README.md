@@ -1,11 +1,19 @@
 # Sprak Capture MCP Server
 
-`capture-mcp` 是使用官方 `rmcp 3.1` 实现的 stdio MCP Server，协议内 server 名为
-`capture`。它只适配
+`capture-mcp` 使用官方 `rmcp 3.1`，同时提供工具内置的 Streamable HTTP 传输和独立
+stdio 入口，协议内 server 名为 `capture`。它只适配
 `proxyService` 已公开的 HTTP 控制契约，所有操作与 Web/Desktop UI 等价，不增加权限
 中间件或隐藏路由。
 
 ## 构建与运行
+
+### 工具内置服务
+
+打开“设置 → MCP 集成”，选择端口并启用。配置会写入安装目录 `data/configuration.json`，
+运行时只监听 `127.0.0.1`，界面显示的 `http://127.0.0.1:PORT/mcp` 即客户端连接地址。
+切换开关或端口不会重启代理、WinDivert 或录制服务。
+
+### 独立 stdio 入口
 
 先启动控制服务：
 

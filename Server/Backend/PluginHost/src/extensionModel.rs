@@ -438,7 +438,7 @@ fn validateManifest(manifest: ExtensionManifest) -> Result<ExtensionManifest, Pl
     {
         return Err(PluginHostError::InvalidManifest);
     }
-    // 所有生产适配器当前固定执行 v2；在没有协商器时接受其他声明会让作者按错误 ABI/JSONL 解释字节。
+    // 所有生产适配器固定执行当前线上协议；在没有协商器时接受其他声明会让作者按错误 ABI/JSONL 解释字节。
     if manifest.runtime.protocolVersion.as_deref() != Some(EXTENSION_RUNTIME_PROTOCOL_VERSION)
         || manifest.runtime.arguments.len() > MAXIMUM_RUNTIME_ARGUMENTS
         || manifest.runtime.arguments.iter().any(|argument| {

@@ -22,5 +22,5 @@
   "dependencies": {},
   "limits": { "timeoutMs": 0, "maxPendingEvents": 0, "maxOutputBytes": 0, "maxStorageBytes": 0 },
   "failurePolicy": "failClosed",
-  "extensions": { "typeScriptSdk": { "protocol": "jsonl-v2" } }
+  "extensions": { "typeScriptSdk": { "protocol": "jsonl" } }
 }

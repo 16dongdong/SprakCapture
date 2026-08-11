@@ -242,6 +242,7 @@ mod httpControl;
 mod initialization;
 mod listenerControl;
 mod mapLocalImport;
+mod mcpControl;
 mod mediaPreviewControl;
 mod pluginControl;
 mod processControl;
@@ -750,6 +751,8 @@ pub struct ControlSnapshot {
     pub advancedRepeats: Vec<repeatControl::AdvancedRepeatJob>,
     /// 插件公开状态包含生命周期和活动连接计数；配置详情仍由按需端点读取，避免进入常驻事件流。
     pub plugins: Vec<plugin_host::PluginSnapshot>,
+    /// 内置 MCP 使用独立回环监听，可在不重启代理数据面的情况下热启停。
+    pub mcp: mcpControl::McpPublicState,
 }
 
 /// 描述单个数据面监听器的配置和实际绑定结果；部分启动失败不会掩盖另一监听器状态。
@@ -965,6 +968,7 @@ pub struct ControlState {
     protocols: protocolControl::ProtocolRuntime,
     pluginHost: PluginHost,
     repeatRuntime: repeatControl::RepeatRuntime,
+    mcp: mcpControl::McpManager,
     processCapture: Arc<ProcessCapture>,
     serviceOperationLock: Arc<Mutex<()>>,
     service: Arc<Mutex<ManagedService>>,
@@ -995,6 +999,7 @@ impl ControlState {
         let (eventSender, _) = broadcast::channel(2_048);
         let (shutdownSender, _) = watch::channel(false);
         let processSelection = processControl::ProcessSelectionStore::load(dataDirectory)?;
+        let mcp = mcpControl::McpManager::new(processSelection.mcpConfiguration()).await;
         let recordingConfiguration = processSelection.recordingConfiguration();
         let toolsConfiguration = processSelection.toolsConfiguration();
         let recording = RecordingSession::new(RecordingConfiguration {
@@ -1077,6 +1082,7 @@ impl ControlState {
             protocols,
             pluginHost,
             repeatRuntime: repeatControl::RepeatRuntime::default(),
+            mcp,
             processCapture,
             // 启停与配置重启共享同一把操作锁，禁止新监听器在旧配置停机窗口抢占生命周期。
             serviceOperationLock: Arc::new(Mutex::new(())),
@@ -1255,6 +1261,7 @@ impl ControlState {
         });
         let advancedRepeats = self.repeatRuntime.list().await;
         let plugins = self.pluginHost.snapshots();
+        let mcp = self.mcp.publicState().await;
         ControlSnapshot {
             serverInstanceId: self.serverInstanceId.to_string(),
             revision,
@@ -1274,6 +1281,7 @@ impl ControlState {
             transactions,
             advancedRepeats,
             plugins,
+            mcp,
         }
     }
 

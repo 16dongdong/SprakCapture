@@ -1,4 +1,4 @@
-//! 实现 Python、TypeScript、Go 和独立可执行插件共享的 JSONL v2 进程运行时。
+//! 实现 Python、TypeScript、Go 和独立可执行插件共享的 JSONL 进程运行时。
 //!
 //! 宿主只负责进程生命周期、并发请求编号和响应归并，不施加调用超时、并发上限或输出配额。
 //! 插件进程可以并发返回不同请求；标准输出专用于协议帧，作者日志必须写入标准错误。
@@ -300,7 +300,7 @@ impl Drop for ProcessExtensionRuntime {
     }
 }
 
-/// 按运行时类型和入口扩展名构造进程命令；解释器选择属于 SDK v2 的跨语言约定。
+/// 按运行时类型和入口扩展名构造进程命令；解释器选择属于 SDK 的跨语言约定。
 fn processCommand(runtimeKind: ExtensionRuntimeKind, entryPath: &Path) -> Command {
     if runtimeKind == ExtensionRuntimeKind::NativeWorker {
         return Command::new(entryPath);

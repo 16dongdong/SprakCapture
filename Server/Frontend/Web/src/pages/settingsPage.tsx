@@ -20,7 +20,8 @@ export type SettingsSection =
   | "interface"
   | "listener"
   | "upstreamProxy"
-  | "capacity";
+  | "capacity"
+  | "mcp";
 
 interface SettingsDraft extends Omit<
   PublicConfiguration,
@@ -37,6 +38,7 @@ const settingsSections = [
   { value: "listener", labelKey: "page.settings.listenGroup" },
   { value: "upstreamProxy", labelKey: "page.settings.upstreamProxyGroup" },
   { value: "capacity", labelKey: "page.settings.capacityGroup" },
+  { value: "mcp", labelKey: "page.settings.mcpGroup" },
 ] as const;
 
 /**
@@ -107,7 +109,7 @@ export function SettingsPage({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { section } = useParams<{ section?: string }>();
-  const { snapshot, actionPending, updateConfiguration } = useServiceStore();
+  const { snapshot, actionPending, updateConfiguration, updateMcpConfiguration } = useServiceStore();
   const configuration = snapshot?.configuration ?? null;
   const [draft, setDraft] = useState<SettingsDraft | null>(
     configuration === null ? null : createDraft(configuration),
@@ -203,6 +205,7 @@ export function SettingsPage({
     listener: "page.settings.descriptionListener",
     upstreamProxy: "page.settings.descriptionUpstreamProxy",
     capacity: "page.settings.descriptionCapacity",
+    mcp: "page.settings.descriptionMcp",
   };
 
   return (
@@ -245,6 +248,51 @@ export function SettingsPage({
               <ShieldCheck aria-hidden="true" size={24} />
               <strong>{t("page.settings.unavailableTitle")}</strong>
               <span>{t("page.settings.unavailableHint")}</span>
+            </div>
+          ) : activeSection === "mcp" ? (
+            <div className="settingsListenerGroups" aria-label={activeLabel}>
+              <fieldset disabled={actionPending}>
+                <legend>{t("page.settings.mcpGroup")}</legend>
+                <label className="settingsCheckboxRow">
+                  <input
+                    checked={snapshot.mcp.configuration.enabled}
+                    type="checkbox"
+                    onChange={(event) =>
+                      void updateMcpConfiguration({
+                        ...snapshot.mcp.configuration,
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    <strong>{t("page.settings.mcpEnabled")}</strong>
+                    <small>{t("page.settings.mcpEnabledHint")}</small>
+                  </span>
+                </label>
+                <label>
+                  <span>{t("page.settings.mcpPort")}</span>
+                  <input
+                    disabled={snapshot.mcp.configuration.enabled}
+                    max={65535}
+                    min={1}
+                    type="number"
+                    value={snapshot.mcp.configuration.port}
+                    onChange={(event) =>
+                      void updateMcpConfiguration({
+                        enabled: false,
+                        port: readNumberInput(event, snapshot.mcp.configuration.port),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>{t("page.settings.mcpEndpoint")}</span>
+                  <input readOnly value={snapshot.mcp.endpoint ?? "—"} />
+                </label>
+                {snapshot.mcp.lastError ? (
+                  <p className="settingsRestartHint">{snapshot.mcp.lastError}</p>
+                ) : null}
+              </fieldset>
             </div>
           ) : activeSection === "listener" ? (
             <div className="settingsListenerGroups" aria-label={activeLabel}>
@@ -580,7 +628,7 @@ export function SettingsPage({
               ))}
             </div>
           )}
-          {restartRequired && activeSection !== "interface" && (
+          {restartRequired && activeSection !== "interface" && activeSection !== "mcp" && (
             <p className="settingsRestartHint">
               {t("page.settings.restartHint")}
             </p>
@@ -596,7 +644,7 @@ export function SettingsPage({
           >
             {t("page.settings.back")}
           </button>
-          {activeSection !== "interface" && (
+          {activeSection !== "interface" && activeSection !== "mcp" && (
             <button
               className="primaryButton"
               disabled={!configurationAvailable || actionPending}

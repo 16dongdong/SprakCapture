@@ -30,7 +30,7 @@ class ManifestBuilder:
         return self
 
     def build(self, pythonEntry: str) -> dict[str, Any]:
-        """生成可序列化清单；入口是可直接执行 JSONL v2 循环的相对 .py 文件。"""
+        """生成可序列化清单；入口是可直接执行 JSONL 循环的相对 .py 文件。"""
         if not pythonEntry.endswith(".py"):
             raise ValueError("Python Sidecar 入口必须使用 .py 扩展名")
         return {
@@ -47,5 +47,5 @@ class ManifestBuilder:
             "dependencies": {},
             "limits": {"timeoutMs": 0, "maxPendingEvents": 0, "maxOutputBytes": 0, "maxStorageBytes": 0},
             "failurePolicy": "failClosed",
-            "extensions": {"pythonSdk": {"protocol": "jsonl-v2"}},
+            "extensions": {"pythonSdk": {"protocol": "jsonl"}},
         }

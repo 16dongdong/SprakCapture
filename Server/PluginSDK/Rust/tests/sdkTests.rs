@@ -144,7 +144,7 @@ fn lifecycleClosuresAcceptSharedState() {
     assert_eq!(destroyed.load(Ordering::Acquire), 0);
 }
 
-/// 验证真实 ABI v2 初始化、invoke、输出释放、重复 stop 与 destroy 的完整所有权顺序。
+/// 验证真实 ABI 初始化、invoke、输出释放、重复 stop 与 destroy 的完整所有权顺序。
 #[test]
 fn nativeAbiOwnsOutputAndLifecycleExactlyOnce() {
     let stopped = Arc::new(AtomicUsize::new(0));

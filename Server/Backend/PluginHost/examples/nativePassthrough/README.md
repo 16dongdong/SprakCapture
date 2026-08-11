@@ -1,6 +1,6 @@
 # 旧版 Native 直通兼容示例
 
-本示例用于验证 `legacyNative` ABI v1 的迁移兼容性，不代表完整插件与模块平台的推荐运行时或能力边界。新模块优先使用 Wasm、sidecar 或隔离的 native worker。
+本示例用于验证 `legacyNative` 旧版 ABI 的迁移兼容性，不代表完整插件与模块平台的推荐运行时或能力边界。新模块优先使用 Wasm、sidecar 或隔离的 native worker。
 
 构建：
 

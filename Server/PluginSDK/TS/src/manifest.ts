@@ -28,7 +28,7 @@ export class ManifestBuilder {
       runtime: { kind: "sidecar", entry, protocolVersion: "2.0", arguments: [] },
       modules: [...this.modules], capabilities: [], dependencies: {},
       limits: { timeoutMs: 0, maxPendingEvents: 0, maxOutputBytes: 0, maxStorageBytes: 0 },
-      failurePolicy: "failClosed", extensions: { typeScriptSdk: { protocol: "jsonl-v2" } },
+      failurePolicy: "failClosed", extensions: { typeScriptSdk: { protocol: "jsonl" } },
     };
   }
 }

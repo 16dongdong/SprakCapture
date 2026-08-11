@@ -283,6 +283,13 @@ pub struct ControlMcpServer {
 }
 
 impl ControlMcpServer {
+    /// 使用控制接口地址和界面语言创建 MCP 服务；集成式 HTTP 传输调用本入口，参数错误会在监听启动前返回。
+    pub fn new(controlBase: &str, requestedLocale: Option<&str>) -> Result<Self, String> {
+        let catalog = MessageCatalog::load()?;
+        let defaultLocale = catalog.resolveLocale(requestedLocale);
+        Self::newWithCatalog(controlBase.to_owned(), defaultLocale, catalog)
+    }
+
     /// 从环境读取控制基址与默认区域设置；无变量时使用回环控制地址和英文机器友好文案。
     pub fn fromEnvironment() -> Result<Self, String> {
         let catalog = MessageCatalog::load()?;

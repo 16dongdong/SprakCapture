@@ -93,7 +93,7 @@ SSE 是页面状态的默认单向事件通道；WebSocket 保留给双向交互
 事件流主动推进；事务详情使用 Provider 级 revision 单飞缓存，媒体正文使用稳定端点按 Range 增量追加，
 不得恢复固定频率轮询或按事件重复创建并发读取。
 每个后台进程使用随机 `serverInstanceId`；revision 只在同一实例内比较，
-`BroadcastChannel` 使用 v2 消息并拒绝旧实例回放。
+`BroadcastChannel` 使用当前消息契约并拒绝旧实例回放。
 
 工具总开关与对话框内勾选、菜单前勾选标记、顶栏开关（若有）必须与权威 snapshot 同源。
 

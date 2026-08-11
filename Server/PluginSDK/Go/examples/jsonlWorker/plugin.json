@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "example.go-jsonl-worker",
   "name": "Go JSONL Worker 示例",
-  "description": "使用 Go SDK 的 JSONL v2 生产入口处理阶段事件。",
+  "description": "使用 Go SDK 的 JSONL 生产入口处理阶段事件。",
   "version": "1.0.0",
   "publisher": "examples",
   "engines": { "host": ">=1.0.0", "api": "2.x" },

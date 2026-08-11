@@ -1,4 +1,4 @@
-/** 验证 TypeScript SDK 的动作、流式协议与 JSONL v2 运行器。 */
+/** 验证 TypeScript SDK 的动作、流式协议与 JSONL 运行器。 */
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -65,7 +65,7 @@ test("构建输出包含可直接加载的完整示例", async () => {
   assert.equal(manifest.runtime.entry, "plugin.js");
 });
 
-test("runner 严格实现 JSONL v2", async () => {
+test("runner 严格实现 JSONL", async () => {
   /** 启动真实 Node 子进程，验证逐行 ready/result 与 requestId 关联。 */
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
   const runner = resolve(currentDirectory, "../src/runner.js");

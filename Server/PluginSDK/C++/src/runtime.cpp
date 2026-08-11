@@ -36,7 +36,7 @@ struct OutputBuffer final {
   void (*release)(void *, const std::uint8_t *, std::size_t);
 };
 
-/// 与宿主 Native 导出表保持 C 布局；任何字段顺序变化都会破坏 ABI v2。
+/// 与宿主 Native 导出表保持 C 布局；任何字段顺序变化都会破坏 ABI。
 struct Exports final {
   std::uint32_t apiVersion;
   void *pluginContext;
@@ -203,7 +203,7 @@ struct RuntimeAccess final {
   static void stop(Plugin &plugin) noexcept { plugin.stop(); }
 };
 
-/// 初始化插件实例并发布 ABI v2 导出表；配置函数只接触强类型 Plugin，不接触 ABI
+/// 初始化插件实例并发布 ABI 导出表；配置函数只接触强类型 Plugin，不接触 ABI
 /// 内存。
 int initialize(const void *requestPointer, void *exportsPointer,
                void (*configure)(Plugin &)) noexcept {

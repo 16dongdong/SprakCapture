@@ -1597,6 +1597,24 @@ export const advancedRepeatJobSchema = z
   })
   .strict();
 
+export const mcpPublicStateSchema = z
+  .object({
+    configuration: z
+      .object({ enabled: z.boolean(), port: z.number().int().min(1).max(65535) })
+      .strict(),
+    running: z.boolean(),
+    endpoint: z.string().url().nullable(),
+    lastError: z.string().nullable(),
+  })
+  .strict();
+
+const disabledMcpPublicState = {
+  configuration: { enabled: false, port: 17_891 },
+  running: false,
+  endpoint: null,
+  lastError: null,
+} as const;
+
 export const serviceSnapshotSchema = z
   .object({
     serverInstanceId: serverInstanceIdSchema,
@@ -1615,6 +1633,9 @@ export const serviceSnapshotSchema = z
     plugins: z.array(pluginSnapshotSchema),
     // 高级重复作业是小型有界控制状态，直接进入实时快照，避免前端定时查询作业端点。
     advancedRepeats: z.array(advancedRepeatJobSchema).max(64),
+    // 桌面更新时新前端可能先连接仍在退出的旧后端；缺少 MCP 字段只表示该旧进程尚未提供集成服务，
+    // 不应让整个权威快照失效并连带阻断事务详情。新后端仍始终显式返回该字段。
+    mcp: mcpPublicStateSchema.default(disabledMcpPublicState),
   })
   .strict()
   // 快照 revision 与录制会话必须覆盖同一原子视图，禁止接受跨时刻拼接的数据。
@@ -1654,6 +1675,14 @@ export const eventMessageSchema = z
         revision: safeUnsignedIntegerSchema,
         serviceState: serviceStateSchema,
         listeners: listenersSnapshotSchema,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("mcp"),
+        serverInstanceId: serverInstanceIdSchema,
+        revision: safeUnsignedIntegerSchema,
+        mcp: mcpPublicStateSchema,
       })
       .strict(),
     z
@@ -1909,6 +1938,7 @@ export type AdvancedRepeatState = z.infer<typeof advancedRepeatStateSchema>;
 export type LatencyStatistics = z.infer<typeof latencyStatisticsSchema>;
 export type AdvancedRepeatJob = z.infer<typeof advancedRepeatJobSchema>;
 export type ServiceSnapshot = z.infer<typeof serviceSnapshotSchema>;
+export type McpConfiguration = ServiceSnapshot["mcp"]["configuration"];
 export type EventMessage = z.infer<typeof eventMessageSchema>;
 export type ProcessCandidate = z.infer<typeof processCandidateSchema>;
 export type ProcessSelectionSnapshot = z.infer<

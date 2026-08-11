@@ -102,6 +102,13 @@ export function mergeServiceEvent(
       plugins: message.plugins,
     };
   }
+  if (message.type === "mcp") {
+    return {
+      ...currentSnapshot,
+      revision: message.revision,
+      mcp: message.mcp,
+    };
+  }
   if (message.type === "recording") {
     return {
       ...currentSnapshot,

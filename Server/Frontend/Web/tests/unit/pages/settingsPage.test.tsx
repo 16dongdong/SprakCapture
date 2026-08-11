@@ -89,6 +89,36 @@ function LocationProbe() {
 }
 
 describe("设置页面导航", () => {
+  it("MCP 开关通过独立热更新端点提交且不显示代理重启提示", async () => {
+    const user = userEvent.setup();
+    const updateMcpConfiguration = vi.fn(async () =>
+      createServiceSnapshot({
+        mcp: {
+          configuration: { enabled: true, port: 17_891 },
+          running: true,
+          endpoint: "http://127.0.0.1:17891/mcp",
+          lastError: null,
+        },
+      }),
+    );
+    renderSettingsPage(
+      "mcp",
+      createServiceSnapshot({ serviceState: "running" }),
+      { updateMcpConfiguration },
+    );
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: /^启用 MCP/ }),
+    );
+
+    expect(updateMcpConfiguration).toHaveBeenCalledWith(
+      { enabled: true, port: 17_891 },
+    );
+    expect(screen.queryByText("应用配置会强制断开当前代理连接并重启服务。"))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "应用配置" })).not.toBeInTheDocument();
+  });
+
   it("点击工具菜单外区域或按 Escape 会立即收起临时浮层", async () => {
     const user = userEvent.setup();
     renderWithService(

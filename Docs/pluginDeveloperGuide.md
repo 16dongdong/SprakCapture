@@ -273,7 +273,7 @@ Rust、C/C++、TypeScript、Python SDK 的语义必须一致；语言差异只�
 | 开发者需要 | 已发布契约 | 扩展该能力时的强制验收 |
 |---|---|---|
 | 创建项目 | 五种 SDK、可构建示例、`capture-plugin check/schema/fixture` | 模板、示例清单、入口文件和 Host 加载测试必须同时通过 |
-| 获取强类型 API | C++、Rust、Go、Python、TypeScript 使用同一 Native ABI v2/Process JSONL v2 | 新增字段必须同步五种 SDK、Schema、协议文档与边界测试 |
+| 获取强类型 API | C++、Rust、Go、Python、TypeScript 使用同一 Native ABI/Process JSONL | 新增字段必须同步五种 SDK、Schema、协议文档与边界测试 |
 | 离线调试 | SDK 模拟器、真实 ABI/子进程契约测试和固定夹具 | 模拟输入输出必须与生产 Host 逐字段一致 |
 | 热重载 | 包级 reload 与运行实例原子替换 | 旧实例停止、在途调用、配置迁移和失败回滚必须有并发测试 |
 | 操作协议流 | Native/Sidecar/Worker 接入统一阶段内核；当前数据面覆盖 TCP、UDP 和连接关闭 | 新数据面阶段必须同时接入顺序、修改链、失败语义和真实流量测试 |
@@ -281,7 +281,7 @@ Rust、C/C++、TypeScript、Python SDK 的语义必须一致；语言差异只�
 | 组合多个 Mod | 用户顺序、匹配覆盖、失败策略和执行痕迹 | 多插件顺序、短路、代际隔离和确定性重放必须通过 |
 | 构建发布包 | 包安装、目录校验和入口检查 | 打包、签名、来源、依赖锁、撤回与回滚使用同一清单事实 |
 | 诊断线上问题 | 实例并发、调用追踪、输入输出大小、动作和稳定错误码 | 新运行时不得吞掉作者 stderr、协议错误或生命周期失败 |
-| 跨版本维护 | manifest v2、Native ABI v2、Process JSONL v2 与权威 Schema | 协议版本必须精确协商；不兼容版本在加载前拒绝 |
+| 跨版本维护 | 插件清单、Native ABI、Process JSONL 与权威 Schema | 协议版本必须精确协商；不兼容版本在加载前拒绝 |
 
 当前五种语言已经共享同一事件、动作和生命周期契约，Sidecar 与 Native Worker 可由生产 Host 直接加载。
 扩展阶段时必须先更新权威 Schema、五种 SDK 类型与契约测试，再接入数据面；不得新增只有宿主内部

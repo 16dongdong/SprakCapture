@@ -2,6 +2,7 @@
 #![allow(non_upper_case_globals)]
 
 pub mod controlClient;
+pub mod httpServer;
 pub mod localization;
 pub mod models;
 pub mod server;

@@ -1,4 +1,4 @@
-//! 实现 Native ABI v2 的 C 布局、插件注册、生命周期与输出所有权转移。
+//! 实现 Native ABI 的 C 布局、插件注册、生命周期与输出所有权转移。
 
 use std::{
     ffi::c_void,
@@ -41,7 +41,7 @@ pub struct NativeExtensionBuffer {
     pub release: Option<unsafe extern "C" fn(*mut c_void, *const u8, usize)>,
 }
 
-/// 描述 Native ABI v2 导出表；字段顺序必须与宿主 `NativeExtensionExports` 保持一致。
+/// 描述 Native ABI 导出表；字段顺序必须与宿主 `NativeExtensionExports` 保持一致。
 #[repr(C)]
 pub struct NativeExtensionExports {
     pub apiVersion: u32,
@@ -260,7 +260,7 @@ unsafe extern "C" fn invokePlugin(
     }
     let result = catch_unwind(AssertUnwindSafe(|| -> Result<Vec<u8>, PluginError> {
         let invocation = serde_json::from_slice::<Invocation>(&unsafe { copySlice(request)? })
-            .map_err(|_| PluginError::new("invocation 不是有效 ABI v2 JSON"))?;
+            .map_err(|_| PluginError::new("invocation 不是有效 ABI JSON"))?;
         let action = (runtime.plugin.handler)(&invocation)?;
         if action.eventId != invocation.envelope.eventId {
             return Err(PluginError::new("动作 eventId 与当前事件不一致"));

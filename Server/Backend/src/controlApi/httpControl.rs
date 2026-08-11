@@ -39,9 +39,9 @@ use std::{convert::Infallible, time::Duration};
 
 use super::{
     ConfigurationUpdate, ControlSnapshot, ControlState, ListenerSnapshots, PublicConfiguration,
-    ServiceState, ToolsPublicState, listenerControl, mapLocalImport, mediaPreviewControl,
-    pluginControl, processControl, protocolControl, repeatControl, sslControl, toolControl,
-    waitForControlShutdown,
+    ServiceState, ToolsPublicState, listenerControl, mapLocalImport, mcpControl,
+    mediaPreviewControl, pluginControl, processControl, protocolControl, repeatControl, sslControl,
+    toolControl, waitForControlShutdown,
 };
 use crate::localization::{
     ErrorCode, Locale, MessageParams, RequestLocale, localizeError, resolveRequestLocale,
@@ -179,6 +179,11 @@ pub enum EventMessage {
         revision: u64,
         plugins: Vec<plugin_host::PluginSnapshot>,
     },
+    Mcp {
+        serverInstanceId: String,
+        revision: u64,
+        mcp: mcpControl::McpPublicState,
+    },
     ProcessCapture {
         serverInstanceId: String,
         revision: u64,
@@ -285,9 +290,11 @@ pub fn createControlRouter(state: ControlState) -> Router {
         .route("/api/v1/service/start", post(startService))
         .route("/api/v1/service/stop", post(stopService))
         .route("/api/v1/configuration", put(replaceConfiguration));
-    mediaPreviewControl::addRoutes(processControl::addRoutes(protocolControl::addRoutes(
-        repeatControl::addRoutes(mapLocalImport::addRoutes(toolControl::addRoutes(
-            pluginControl::addRoutes(listenerControl::addRoutes(sslControl::addRoutes(router))),
+    mcpControl::addRoutes(mediaPreviewControl::addRoutes(processControl::addRoutes(
+        protocolControl::addRoutes(repeatControl::addRoutes(mapLocalImport::addRoutes(
+            toolControl::addRoutes(pluginControl::addRoutes(listenerControl::addRoutes(
+                sslControl::addRoutes(router),
+            ))),
         ))),
     )))
     .route("/api/v1/sessions", delete(clearSessions))

@@ -16,7 +16,7 @@ func init() {
 	})
 }
 
-// main 通过标准输入输出运行完整 JSONL v2 生命周期；错误直接返回非零退出码。
+// main 通过标准输入输出运行完整 JSONL 生命周期；错误直接返回非零退出码。
 func main() {
 	if err := pluginsdk.RunJSONL(context.Background(), os.Stdin, os.Stdout); err != nil {
 		_, _ = os.Stderr.WriteString(err.Error() + "\n")

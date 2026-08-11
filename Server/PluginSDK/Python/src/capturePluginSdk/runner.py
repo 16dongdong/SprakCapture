@@ -1,4 +1,4 @@
-"""把标准输入上的 Sidecar JSONL v2 协议映射到普通 Python 插件函数。"""
+"""把标准输入上的 Sidecar JSONL 协议映射到普通 Python 插件函数。"""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class JsonLineWriter:
 
 
 def run(plugin: Plugin, concurrentInvocations: bool = False) -> None:
-    """执行 JSONL v2；默认串行，作者显式开启后允许 requestId 结果乱序返回。"""
+    """执行 JSONL；默认串行，作者显式开启后允许 requestId 结果乱序返回。"""
     initialized = False
     writer = JsonLineWriter()
     activeTasks: set[threading.Thread] = set()

@@ -68,6 +68,7 @@ import {
   type ComposeRequest,
   type ComposeRequestOverrides,
   type ComposeResult,
+  type McpConfiguration,
   type ConfigurationUpdate,
   type DecodedProtobufView,
   type AutoSaveConfiguration,
@@ -196,6 +197,10 @@ export interface ControlClient {
   stopService(signal?: AbortSignal): Promise<ServiceSnapshot>;
   updateConfiguration(
     update: ConfigurationUpdate,
+    signal?: AbortSignal,
+  ): Promise<ServiceSnapshot>;
+  updateMcpConfiguration(
+    configuration: McpConfiguration,
     signal?: AbortSignal,
   ): Promise<ServiceSnapshot>;
   getProcesses(signal?: AbortSignal): Promise<ProcessSelectionSnapshot>;
@@ -438,6 +443,22 @@ export class HttpControlClient implements ControlClient {
   ) {
     this.baseUrl = resolveControlBaseUrl(baseUrl);
     this.requestFetch = requestFetch;
+  }
+
+  /** 热启停内置 MCP 并持久化端口；成功响应是包含真实监听结果的完整权威快照。 */
+  updateMcpConfiguration(
+    configuration: McpConfiguration,
+    signal?: AbortSignal,
+  ): Promise<ServiceSnapshot> {
+    return this.request(
+      "/api/v1/mcp",
+      {
+        method: "PUT",
+        body: JSON.stringify(configuration),
+        signal,
+      },
+      serviceSnapshotSchema,
+    );
   }
 
   /** 提交代理进程 DNS 映射规则；主机名保持不变，仅替换新建出站连接使用的目标 IP。 */

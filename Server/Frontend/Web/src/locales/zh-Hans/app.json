@@ -163,7 +163,13 @@
       "upstreamProxyPassword": "密码",
       "upstreamProxyPasswordSaved": "已保存；留空保持不变",
       "upstreamProxyPasswordClear": "清除已保存口令",
-      "descriptionUpstreamProxy": "配置所有 HTTP 与 SOCKS5 出站连接共用的二级代理。"
+      "descriptionUpstreamProxy": "配置所有 HTTP 与 SOCKS5 出站连接共用的二级代理。",
+      "mcpGroup": "MCP 集成",
+      "descriptionMcp": "热启停内置 MCP Streamable HTTP 服务，不会重启代理或中断录制。",
+      "mcpEnabled": "启用 MCP",
+      "mcpEnabledHint": "仅监听本机回环地址，配置会保存到安装目录的数据配置文件。",
+      "mcpPort": "MCP 端口",
+      "mcpEndpoint": "连接地址"
     },
     "processManager": {
       "title": "进程管理",

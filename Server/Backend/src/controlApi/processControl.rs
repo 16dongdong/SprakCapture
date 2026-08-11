@@ -27,8 +27,8 @@ use sysinfo::System;
 
 use super::{
     ApiError, ConfigurationUpdate, ControlState, ErrorCode, LocalizedApiError, ServiceState,
-    processIcon::extractProcessIcon, protocolControl::PersistedProtocolConfiguration,
-    toolControl::PersistedToolsConfiguration,
+    mcpControl::McpConfiguration, processIcon::extractProcessIcon,
+    protocolControl::PersistedProtocolConfiguration, toolControl::PersistedToolsConfiguration,
 };
 use crate::localization::RequestLocale;
 
@@ -115,6 +115,7 @@ struct PersistedApplicationConfiguration {
     ssl: SslMitmConfiguration,
     tools: PersistedToolsConfiguration,
     protocols: PersistedProtocolConfiguration,
+    mcp: McpConfiguration,
 }
 
 /// 维护统一持久化状态；更新锁串行化“克隆快照、原子写盘、发布内存”事务，但不覆盖服务启停或网络操作。
@@ -149,6 +150,7 @@ impl ProcessSelectionStore {
                 ssl: state.ssl,
                 tools: state.tools,
                 protocols: state.protocols,
+                mcp: state.mcp,
             })),
             updateLock: Arc::new(Mutex::new(())),
         })
@@ -182,6 +184,11 @@ impl ProcessSelectionStore {
     /// 返回 Protobuf 路由和正文校验器配置；描述符原始字节仍由受控描述符目录单独保存。
     pub(super) fn protocolConfiguration(&self) -> PersistedProtocolConfiguration {
         self.state.read().protocols.clone()
+    }
+
+    /// 返回集成 MCP 的持久化开关与端口；运行状态由控制进程重新绑定后生成，不能直接从文件恢复。
+    pub(super) fn mcpConfiguration(&self) -> McpConfiguration {
+        self.state.read().mcp.clone()
     }
 
     /// 把已保存路径解析为当前 PID，并生成可直接交给 WinDivert 的运行时配置。
@@ -325,6 +332,14 @@ impl ProcessSelectionStore {
         configuration: PersistedRecordingConfiguration,
     ) -> Result<(), std::io::Error> {
         self.replaceConfiguration(|state| state.recording = configuration)
+    }
+
+    /// 原子写入 MCP 配置；调用方必须先完成端口绑定或关闭，写盘失败时返回原始 I/O 错误。
+    pub(super) fn replaceMcpConfiguration(
+        &self,
+        configuration: McpConfiguration,
+    ) -> Result<(), std::io::Error> {
+        self.replaceConfiguration(|state| state.mcp = configuration)
     }
 
     /// 串行提交单个配置域；回调只修改内存候选，磁盘原子替换成功后才发布完整新快照。

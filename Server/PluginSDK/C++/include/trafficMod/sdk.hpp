@@ -81,7 +81,7 @@ private:
   Value value_;
 };
 
-/// 列出 Native ABI v2 当前公开的全部阶段；未知阶段仍可通过 Event::stageName
+/// 列出 Native ABI 当前公开的全部阶段；未知阶段仍可通过 Event::stageName
 /// 读取。
 enum class Stage {
   Unknown,
@@ -210,7 +210,7 @@ struct InitContext final {
   Json configuration;
 };
 
-/// 注册普通 C++ 回调并负责所有 Native ABI v2
+/// 注册普通 C++ 回调并负责所有 Native ABI
 /// 适配；同一实例可能被多个连接线程并发调用。
 class Plugin final {
 public:
@@ -259,7 +259,7 @@ private:
 
 namespace detail {
 
-/// Native ABI v2 的内部初始化桥；公开是为了让导出宏生成单一平台无关入口。
+/// Native ABI 的内部初始化桥；公开是为了让导出宏生成单一平台无关入口。
 int initialize(const void *request, void *exports,
                void (*configure)(Plugin &)) noexcept;
 
@@ -273,7 +273,7 @@ int initialize(const void *request, void *exports,
 #define TRAFFIC_MOD_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
-/// 导出 Native ABI v2 固定入口；插件作者只需实现一个接收 Plugin&
+/// 导出 Native ABI 固定入口；插件作者只需实现一个接收 Plugin&
 /// 的普通配置函数。
 #define TRAFFIC_MOD_PLUGIN(configureFunction)                                  \
   TRAFFIC_MOD_EXPORT int capture_extension_init(const void *request,           \

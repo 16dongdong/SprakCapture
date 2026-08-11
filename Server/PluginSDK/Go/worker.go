@@ -17,7 +17,7 @@ type WorkerOptions struct {
 	MaxConcurrentInvocations int
 }
 
-// workerRequest 描述 Host→worker JSONL v2 消息；未使用字段保留为空。
+// workerRequest 描述 Host→worker JSONL 消息；未使用字段保留为空。
 type workerRequest struct {
 	Type          string          `json:"type"`
 	APIVersion    uint32          `json:"apiVersion,omitempty"`
@@ -27,7 +27,7 @@ type workerRequest struct {
 	Invocation    json.RawMessage `json:"invocation,omitempty"`
 }
 
-// workerResponse 描述 worker→Host JSONL v2 消息；每次写入一个完整换行对象。
+// workerResponse 描述 worker→Host JSONL 消息；每次写入一个完整换行对象。
 type workerResponse struct {
 	Type       string          `json:"type"`
 	APIVersion uint32          `json:"apiVersion,omitempty"`
@@ -122,12 +122,12 @@ func (scheduler *invocationScheduler) wait() error {
 	return scheduler.output.err()
 }
 
-// RunJSONL 以默认串行模式运行 JSONL v2 worker，直到 stop、EOF 或上下文取消。
+// RunJSONL 以默认串行模式运行 JSONL worker，直到 stop、EOF 或上下文取消。
 func RunJSONL(ctx context.Context, reader io.Reader, writer io.Writer) error {
 	return RunJSONLWithOptions(ctx, reader, writer, WorkerOptions{})
 }
 
-// RunJSONLWithOptions 运行可选有界并发的完整 JSONL v2 worker。
+// RunJSONLWithOptions 运行可选有界并发的完整 JSONL worker。
 //
 // Decoder 流式读取 JSON 对象，不使用 Scanner，因而不会截断大正文。并发模式允许 result 按完成
 // 顺序乱序返回，但 requestId 始终对应原调用；stop、EOF 与取消都会等待在途任务后执行 stop→destroy。
@@ -227,7 +227,7 @@ func RunJSONLWithOptions(
 			}
 			return nil
 		default:
-			return errors.New("未知 JSONL v2 消息类型")
+			return errors.New("未知 JSONL 消息类型")
 		}
 	}
 }

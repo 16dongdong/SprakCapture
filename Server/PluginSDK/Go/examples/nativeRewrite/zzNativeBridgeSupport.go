@@ -31,7 +31,7 @@ void nativeContextFree(void *context) {
     free(context);
 }
 
-// 按宿主 ABI v2 固定字段顺序填充导出表。
+// 按宿主 ABI 固定字段顺序填充导出表。
 void nativeExportsSet(NativeExtensionExports *exports, void *context) {
     exports->apiVersion = 2;
     exports->pluginContext = context;

@@ -48,7 +48,7 @@ void onConnectionClose(void *context, const StreamConnectionCloseEvent *event) {
 
 } // namespace
 
-/// 填充 ABI v1 导出表；所有函数均使用 C 链接，禁止异常离开该边界。
+/// 填充 旧版 ABI 导出表；所有函数均使用 C 链接，禁止异常离开该边界。
 extern "C" STREAM_PLUGIN_EXPORT int32_t stream_plugin_init(
     const StreamHostFunctions *host,
     const StreamPluginInitRequest *request,
