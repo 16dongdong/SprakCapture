@@ -26,7 +26,9 @@ pub use developerTools::{
 pub use extensionConfiguration::{
     ExtensionConfigurationStore, PluginPlatformConfiguration, PluginUserConfiguration,
 };
-pub use extensionDataPlane::DataPlaneActionResult;
+pub use extensionDataPlane::{
+    DataPlaneActionResult, WireByteModification, deriveWireByteModifications,
+};
 pub use extensionKernel::{
     DispatchFailure, DispatchResult, ExtensionInstanceSnapshot, ExtensionKernel, ExtensionRuntime,
     InvocationTrace, RuntimeInvocation,

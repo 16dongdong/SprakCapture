@@ -645,6 +645,7 @@ export function ToolSettingsDialog({
                   activeConfiguration as PacketFilterConfiguration
                 }
                 disabled={actionPending}
+                onApply={updatePacketFilters}
                 onChange={(nextConfiguration) => {
                   setDraftConfiguration({
                     tool: "packetFilters",

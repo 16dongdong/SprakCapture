@@ -256,6 +256,7 @@ pub struct CapturedPacket {
     pub storedOffsetBytes: usize,
     pub storedBytes: usize,
     pub originalBytes: u64,
+    pub modifications: Vec<plugin_host::WireByteModification>,
 }
 
 #[derive(Eq, PartialEq)]
@@ -291,6 +292,7 @@ impl CapturedPacketList {
         storedOffsetBytes: usize,
         storedBytes: usize,
         originalBytes: u64,
+        modifications: Vec<plugin_host::WireByteModification>,
     ) {
         if storedBytes == 0 {
             return;
@@ -316,6 +318,7 @@ impl CapturedPacketList {
             storedOffsetBytes,
             storedBytes,
             originalBytes,
+            modifications,
         });
     }
 

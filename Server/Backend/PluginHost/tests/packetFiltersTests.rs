@@ -2,6 +2,7 @@ use plugin_host::{
     ConnectionMetadata, DataPlaneActionResult, PacketFilterAction, PacketFilterConfiguration,
     PacketFilterDirection, PacketFilterError, PacketFilterResult, PacketFilterRule,
     PacketFilterRuntime, PacketFilterTransport, PluginHost, StreamDirection, TransportKind,
+    deriveWireByteModifications,
 };
 
 /// 创建测试规则并显式填写全部稳定字段，避免 Default 掩盖序列化契约变化。
@@ -26,6 +27,25 @@ fn rule(id: &str, action: PacketFilterAction) -> PacketFilterRule {
         replaceAll: false,
         continueMatching: false,
     }
+}
+
+/// 验证包级差异同时覆盖等长字节替换和变长重封包；界面依赖该元数据还原原值而不是重新执行规则。
+#[test]
+fn derives_exact_wire_byte_modifications() {
+    let equal_length =
+        deriveWireByteModifications(&[0x03, 0x06, 0x02, 0x01], &[0x03, 0x06, 0x02, 0x00]);
+    assert_eq!(equal_length.len(), 1);
+    assert_eq!(equal_length[0].offsetBytes, 3);
+    assert_eq!(equal_length[0].originalBytes, vec![0x01]);
+    assert_eq!(equal_length[0].modifiedBytes, vec![0x00]);
+
+    let variable_length = deriveWireByteModifications(
+        &[0x01, 0x00, 0x05, 0x03, 0x00, 0x01, 0x01],
+        &[0x01, 0x00, 0x06, 0x03, 0x00, 0x03, 0x03],
+    );
+    assert_eq!(variable_length.len(), 2);
+    assert_eq!(variable_length[0].offsetBytes, 2);
+    assert_eq!(variable_length[1].offsetBytes, 5);
 }
 
 /// 创建与规则匹配的 TCP 连接元数据；目标主机大小写用于覆盖规范化路径。

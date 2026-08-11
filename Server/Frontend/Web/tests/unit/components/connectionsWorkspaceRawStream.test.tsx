@@ -334,6 +334,8 @@ describe("事务工作台原始流", () => {
               storedBytes: 7,
               originalBytes: 7,
               truncated: false,
+              action: "forward",
+              modifications: [],
             },
           ],
           responsePackets: [
@@ -344,6 +346,14 @@ describe("事务工作台原始流", () => {
               storedBytes: 5,
               originalBytes: 5,
               truncated: false,
+              action: "replace",
+              modifications: [
+                {
+                  offsetBytes: 1,
+                  originalBytes: [0x01],
+                  modifiedBytes: [0x00],
+                },
+              ],
             },
           ],
         }),
@@ -414,7 +424,9 @@ describe("事务工作台原始流", () => {
         sequence: null,
       });
       await user.click(screen.getByRole("button", { name: "展开 响应" }));
-      await user.click(await screen.findByRole("button", { name: "响应 5 B" }));
+      await user.click(
+        await screen.findByRole("button", { name: "响应 替换 5 B" }),
+      );
       expect(selectPacket).toHaveBeenLastCalledWith({
         transactionId: `${protocol}-transaction-stream`,
         side: "response",
@@ -516,6 +528,14 @@ describe("事务工作台原始流", () => {
           storedBytes: 4,
           originalBytes: 4,
           truncated: false,
+          action: "replace",
+          modifications: [
+            {
+              offsetBytes: 1,
+              originalBytes: [0x01],
+              modifiedBytes: [0x00],
+            },
+          ],
         },
         {
           sequence: 2,
@@ -525,6 +545,8 @@ describe("事务工作台原始流", () => {
           storedBytes: 6,
           originalBytes: 8,
           truncated: true,
+          action: "drop",
+          modifications: [],
         },
       ],
     };
@@ -541,6 +563,21 @@ describe("事务工作台原始流", () => {
       },
     });
     storeMocks.getTransactionDetail.mockReset().mockResolvedValue(streamDetail);
+    storeMocks.getTransactionBody.mockResolvedValue({
+      revision: 1,
+      meta: {
+        transactionId: streamTransaction.transactionId,
+        side: "response",
+        contentType: "application/octet-stream",
+        encoding: "binary",
+        storedBytes: 10,
+        originalBytes: 12,
+        truncated: true,
+      },
+      base64: window.btoa(
+        String.fromCharCode(0xaa, 0x00, 0xbb, 0xcc, 1, 2, 3, 4, 5, 6),
+      ),
+    });
 
     render(<ConnectionsWorkspace />);
     await user.click(
@@ -555,6 +592,11 @@ describe("事务工作台原始流", () => {
     );
     await user.click(await screen.findByRole("button", { name: "响应" }));
     await user.click(screen.getByRole("button", { name: "展开 响应" }));
+    expect(screen.getByRole("button", { name: "响应 丢弃 8 B" })).toBeVisible();
+    expect(screen.getByText("响应 替换")).toHaveClass(
+      "streamPacketAction",
+      "isreplace",
+    );
     const inspector = screen.getByRole("region", { name: "事务检查器" });
 
     expect(within(inspector).getByText("原始字节")).toBeVisible();
@@ -586,7 +628,47 @@ describe("事务工作台原始流", () => {
     expect(storeMocks.getValidateConfiguration).not.toHaveBeenCalled();
     expect(storeMocks.getValidationReports).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "响应 4 B" }));
+    await user.click(
+      screen.getByRole("button", { name: "响应 替换 4 B" }),
+    );
+    expect(
+      within(inspector).getByRole("tab", { name: "内容", selected: true }),
+    ).toBeVisible();
+    expect(
+      await within(inspector).findByRole("region", { name: "十六进制" }),
+    ).toBeVisible();
+    expect(within(inspector).getByText("01/00")).toHaveClass(
+      "hexDumpModifiedByte",
+    );
+    expect(
+      within(inspector).queryByRole("region", { name: "WPE 修改差异" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(inspector).queryByRole("region", { name: "数据包概览" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(inspector).getByRole("tab", { name: "概览" }));
     expect(within(inspector).getByText("第 1 包")).toBeVisible();
+    const packetOverview = within(inspector).getByRole("region", {
+      name: "数据包概览",
+    });
+    expect(
+      within(inspector).getByRole("tab", { name: "概览", selected: true }),
+    ).toBeVisible();
+    expect(within(packetOverview).getByText("捕获时间")).toBeVisible();
+    expect(within(packetOverview).getByText("相对时间")).toBeVisible();
+    expect(within(packetOverview).getByText("+5 ms")).toBeVisible();
+    expect(within(packetOverview).getByText("原始大小")).toBeVisible();
+    expect(within(packetOverview).getByText("已保存大小")).toBeVisible();
+    expect(within(packetOverview).getByText("正文偏移")).toBeVisible();
+    expect(within(packetOverview).getByText("完整性")).toBeVisible();
+    expect(within(packetOverview).getByText("完整")).toBeVisible();
+    expect(within(packetOverview).getByText("WPE 已修改（1 处）")).toBeVisible();
+    expect(
+      within(inspector).getByRole("tab", { name: "概览", selected: true }),
+    ).toBeVisible();
+    expect(
+      within(inspector).queryByRole("region", { name: "十六进制" }),
+    ).not.toBeInTheDocument();
   });
 });

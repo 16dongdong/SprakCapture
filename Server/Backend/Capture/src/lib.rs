@@ -23,10 +23,10 @@ pub use model::{
     BeginTransaction, BodyHandleMeta, BodyResponse, BodyWrite, HeaderField, MessageSide,
     RecordingConfiguration, RecordingLimits, RecordingLimitsUpdate, RecordingPageView,
     RecordingSettingsUpdate, RecordingSnapshot, RecordingState, ResponseRangeCandidate,
-    StreamPacket, TransactionCompletion, TransactionDetailRecord, TransactionError,
-    TransactionFlags, TransactionProgressUpdate, TransactionProtocol, TransactionSizes,
-    TransactionStatus, TransactionSummary, TransactionTimings, TransactionUpdate,
-    TransactionUserUpdate, currentTimeMilliseconds,
+    StreamPacket, StreamPacketAction, StreamPacketModification, TransactionCompletion,
+    TransactionDetailRecord, TransactionError, TransactionFlags, TransactionProgressUpdate,
+    TransactionProtocol, TransactionSizes, TransactionStatus, TransactionSummary,
+    TransactionTimings, TransactionUpdate, TransactionUserUpdate, currentTimeMilliseconds,
 };
 pub use recordingRules::{
     RecordingRule, RecordingRuleAction, RecordingRuleConfiguration, RecordingRuleError,

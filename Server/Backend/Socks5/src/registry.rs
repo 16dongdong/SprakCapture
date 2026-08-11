@@ -133,9 +133,24 @@ impl SessionRegistry {
 
     /// 累计已成功转发的载荷并保存完整正文与分片索引；空载荷不发布无意义事件。
     pub fn addTraffic(&self, sessionId: &str, direction: TrafficDirection, payload: &[u8]) {
+        self.addModifiedTraffic(sessionId, direction, payload, payload);
+    }
+
+    /// 记录插件处理前后的真实字节并提取差异；正文始终保存最终写线值，差异只作为包级可视化元数据。
+    ///
+    /// 运行上下文：SOCKS TCP/UDP 写入对端成功后调用。`originalPayload` 是读取原文，`payload` 是最终写线值。
+    /// 失败语义：会话已结束或最终正文为空时忽略；该方法不影响已经完成的网络写入。
+    pub fn addModifiedTraffic(
+        &self,
+        sessionId: &str,
+        direction: TrafficDirection,
+        originalPayload: &[u8],
+        payload: &[u8],
+    ) {
         if payload.is_empty() {
             return;
         }
+        let modifications = plugin_host::deriveWireByteModifications(originalPayload, payload);
         let byteCount = payload.len() as u64;
         let capturedAtMilliseconds = currentTimeMilliseconds();
         let snapshot = {
@@ -156,6 +171,7 @@ impl SessionRegistry {
                         storedOffsetBytes,
                         storedBytes,
                         byteCount,
+                        modifications.clone(),
                     );
                 }
                 TrafficDirection::Down => {
@@ -170,6 +186,7 @@ impl SessionRegistry {
                         storedOffsetBytes,
                         storedBytes,
                         byteCount,
+                        modifications,
                     );
                 }
             }

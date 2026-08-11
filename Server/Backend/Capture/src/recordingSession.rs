@@ -1592,10 +1592,22 @@ fn transactionMetadataBytes(record: &TransactionRecord) -> usize {
         })
 }
 
-/// 计算流片段索引的固定槽位容量；片段不携带正文副本，因此不存在额外的动态字符串或字节计费。
+/// 计算流片段索引的固定槽位及修改证据；普通包不携带副本，只有实际变化的短区间计入动态预算。
 fn streamPacketStorageBytes(packets: &[StreamPacket], capacity: usize) -> usize {
     debug_assert!(capacity >= packets.len());
-    size_of::<StreamPacket>().saturating_mul(capacity)
+    packets.iter().fold(
+        size_of::<StreamPacket>().saturating_mul(capacity),
+        |total, packet| {
+            packet
+                .modifications
+                .iter()
+                .fold(total, |packetTotal, change| {
+                    packetTotal
+                        .saturating_add(change.originalBytes.capacity())
+                        .saturating_add(change.modifiedBytes.capacity())
+                })
+        },
+    )
 }
 
 /// 汇总两侧正文引用在正文实际字节之外占用的路径与文本容量。

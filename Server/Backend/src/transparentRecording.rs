@@ -8,13 +8,13 @@ use std::{collections::BTreeMap, io};
 use bytes::Bytes;
 use capture_core::{
     BeginTransaction, BodySpool, CaptureError, MessageSide, RecordingRuleAction, RecordingSession,
-    StreamPacket, TransactionCompletion, TransactionError, TransactionProtocol,
-    TransactionUserUpdate, currentTimeMilliseconds,
+    StreamPacket, StreamPacketAction, StreamPacketModification, TransactionCompletion,
+    TransactionError, TransactionProtocol, TransactionUserUpdate, currentTimeMilliseconds,
 };
 use location_core::ResolvedLocation;
 use plugin_host::{
     ConnectionMetadata, DataPlaneActionResult, PluginConnection, PluginHost, StreamDirection,
-    TransportKind,
+    TransportKind, deriveWireByteModifications,
 };
 use socks5_core::{SessionApplicationProtocol, interception::TcpTunnel};
 use tokio::{
@@ -283,6 +283,8 @@ enum CaptureEvent {
 struct CapturedChunk {
     bytes: Bytes,
     capturedAtMilliseconds: u64,
+    action: StreamPacketAction,
+    modifications: Vec<StreamPacketModification>,
 }
 
 /// 区分自然双向结束、服务取消与网络失败，驱动统一事务状态机。
@@ -425,18 +427,32 @@ where
             writer.shutdown().await?;
             return Ok(transferredBytes);
         }
-        let bytes = match context
+        let originalBytes = &buffer[..byteCount];
+        let actionResult = context
             .pluginHost
             .processDataPlaneBytes(
                 &context.pluginConnection,
                 context.direction,
                 buffer[..byteCount].to_vec(),
             )
-            .await
-        {
-            DataPlaneActionResult::Forward { bytes } => bytes,
-            DataPlaneActionResult::Hold | DataPlaneActionResult::Drop => continue,
+            .await;
+        let (bytes, action) = match actionResult {
+            DataPlaneActionResult::Forward { bytes } => {
+                let action = if bytes == originalBytes {
+                    StreamPacketAction::Forward
+                } else {
+                    StreamPacketAction::Replace
+                };
+                (bytes, action)
+            }
+            DataPlaneActionResult::Hold => continue,
+            DataPlaneActionResult::Drop => {
+                recordInterceptedChunk(&mut context, originalBytes, StreamPacketAction::Drop).await;
+                continue;
+            }
             DataPlaneActionResult::Close => {
+                recordInterceptedChunk(&mut context, originalBytes, StreamPacketAction::Close)
+                    .await;
                 return Err(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "封包数据面关闭了透明连接",
@@ -447,9 +463,19 @@ where
         writer.write_all(&bytes).await?;
         transferredBytes = transferredBytes.saturating_add(bytes.len() as u64);
         if let Some(captureSender) = context.capture.as_ref() {
+            let modifications = deriveWireByteModifications(originalBytes, &bytes)
+                .into_iter()
+                .map(|change| StreamPacketModification {
+                    offsetBytes: change.offsetBytes,
+                    originalBytes: change.originalBytes,
+                    modifiedBytes: change.modifiedBytes,
+                })
+                .collect();
             let chunk = CapturedChunk {
                 bytes: Bytes::from(bytes),
                 capturedAtMilliseconds: currentTimeMilliseconds(),
+                action,
+                modifications,
             };
             let event = match context.side {
                 MessageSide::Request => CaptureEvent::Request(chunk),
@@ -460,6 +486,30 @@ where
                 context.capture = None;
             }
         }
+    }
+}
+
+/// 记录未写向对端但已被规则消费的原始块；失败只关闭本方向录制，不改变丢弃或断连动作。
+async fn recordInterceptedChunk(
+    context: &mut RelayDirectionContext,
+    originalBytes: &[u8],
+    action: StreamPacketAction,
+) {
+    let Some(captureSender) = context.capture.as_ref() else {
+        return;
+    };
+    let chunk = CapturedChunk {
+        bytes: Bytes::copy_from_slice(originalBytes),
+        capturedAtMilliseconds: currentTimeMilliseconds(),
+        action,
+        modifications: Vec::new(),
+    };
+    let event = match context.side {
+        MessageSide::Request => CaptureEvent::Request(chunk),
+        MessageSide::Response => CaptureEvent::Response(chunk),
+    };
+    if captureSender.send(event).await.is_err() {
+        context.capture = None;
     }
 }
 
@@ -581,6 +631,8 @@ async fn appendCapturedChunk(
         storedBytes,
         originalBytes: storedBytes as u64,
         truncated: false,
+        action: chunk.action,
+        modifications: chunk.modifications,
     });
     Ok(())
 }

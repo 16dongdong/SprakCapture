@@ -500,6 +500,7 @@ fn processDatagram(
     let Some(processor) = processor else {
         return Ok(UdpDatagramDecision::Forward {
             payload: event.payload,
+            modifications: Vec::new(),
         });
     };
     processor
@@ -514,7 +515,11 @@ fn applyWholePacketDecision(
     mut event: crate::UdpDatagramEvent,
     decision: UdpDatagramDecision,
 ) -> Result<Option<crate::UdpDatagramEvent>, UdpObservationError> {
-    let UdpDatagramDecision::Forward { payload } = decision else {
+    let UdpDatagramDecision::Forward {
+        payload,
+        modifications,
+    } = decision
+    else {
         return Ok(None);
     };
     if payload.len() > event.payload.len() {
@@ -536,6 +541,7 @@ fn applyWholePacketDecision(
         .send(&packet)
         .map_err(|error| UdpObservationError::Send(error.to_string()))?;
     event.payload = payload;
+    event.modifications = modifications;
     Ok(Some(event))
 }
 
@@ -546,7 +552,11 @@ fn applyFragmentDecision(
     mut event: crate::UdpDatagramEvent,
     decision: UdpDatagramDecision,
 ) -> Result<Option<crate::UdpDatagramEvent>, UdpObservationError> {
-    let UdpDatagramDecision::Forward { payload } = decision else {
+    let UdpDatagramDecision::Forward {
+        payload,
+        modifications,
+    } = decision
+    else {
         return Ok(None);
     };
     if payload.len() > event.payload.len() {
@@ -608,6 +618,7 @@ fn applyFragmentDecision(
         }
     }
     event.payload = payload;
+    event.modifications = modifications;
     Ok(Some(event))
 }
 

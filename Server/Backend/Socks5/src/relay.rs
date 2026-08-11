@@ -45,6 +45,7 @@ where
             writer.shutdown().await?;
             return Ok(totalBytes);
         }
+        let originalBytes = buffer[..byteCount].to_vec();
         match pluginHost
             .processDataPlaneBytes(
                 &pluginConnection,
@@ -57,7 +58,7 @@ where
                 writer.write_all(&bytes).await?;
                 writer.flush().await?;
                 totalBytes = totalBytes.saturating_add(bytes.len() as u64);
-                registry.addTraffic(&sessionId, direction, &bytes);
+                registry.addModifiedTraffic(&sessionId, direction, &originalBytes, &bytes);
             }
             DataPlaneActionResult::Hold | DataPlaneActionResult::Drop => continue,
             DataPlaneActionResult::Close => return Err(Socks5Error::PluginClosed),

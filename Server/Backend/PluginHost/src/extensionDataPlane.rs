@@ -22,6 +22,65 @@ pub enum DataPlaneActionResult {
     Close,
 }
 
+/// 描述最终写线字节相对读取原文的一段变化；偏移以修改后正文为坐标，支持等长替换和变长重封包。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WireByteModification {
+    pub offsetBytes: usize,
+    pub originalBytes: Vec<u8>,
+    pub modifiedBytes: Vec<u8>,
+}
+
+/// 在线性时间内提取写线差异；等长正文按连续差异拆段，变长正文保留公共前后缀并记录中间替换。
+///
+/// 运行上下文：调用方已取得读取原文和插件/WPE 最终输出，结果只用于录制元数据，不进入网络热路径。
+/// 失败语义：相同正文返回空集合；函数不执行 I/O，也不会修改输入缓冲。
+pub fn deriveWireByteModifications(original: &[u8], modified: &[u8]) -> Vec<WireByteModification> {
+    if original == modified {
+        return Vec::new();
+    }
+    if original.len() == modified.len() {
+        let mut modifications = Vec::new();
+        let mut offset = 0;
+        while offset < original.len() {
+            if original[offset] == modified[offset] {
+                offset += 1;
+                continue;
+            }
+            let start = offset;
+            while offset < original.len() && original[offset] != modified[offset] {
+                offset += 1;
+            }
+            modifications.push(WireByteModification {
+                offsetBytes: start,
+                originalBytes: original[start..offset].to_vec(),
+                modifiedBytes: modified[start..offset].to_vec(),
+            });
+        }
+        return modifications;
+    }
+    let prefixBytes = original
+        .iter()
+        .zip(modified)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let maximumSuffixBytes = original
+        .len()
+        .saturating_sub(prefixBytes)
+        .min(modified.len().saturating_sub(prefixBytes));
+    let suffixBytes = original
+        .iter()
+        .rev()
+        .zip(modified.iter().rev())
+        .take(maximumSuffixBytes)
+        .take_while(|(left, right)| left == right)
+        .count();
+    vec![WireByteModification {
+        offsetBytes: prefixBytes,
+        originalBytes: original[prefixBytes..original.len() - suffixBytes].to_vec(),
+        modifiedBytes: modified[prefixBytes..modified.len() - suffixBytes].to_vec(),
+    }]
+}
+
 impl PluginHost {
     /// 顺序执行 legacy Hook 与完整 Mod 阶段，并返回可直接写入对端的独占字节。
     ///

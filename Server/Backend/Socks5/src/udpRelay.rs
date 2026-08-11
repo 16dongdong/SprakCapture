@@ -263,6 +263,7 @@ pub async fn runUdpAssociation(
                         targetPort: packet.destination.port,
                     })
                 });
+                let originalPayload = packet.payload.clone();
                 match pluginHost
                     .processDataPlaneBytes(
                         connection,
@@ -302,9 +303,10 @@ pub async fn runUdpAssociation(
                 }
                 allowedRemoteAddresses.insert(targetAddress);
                 clientAddress = Some(source);
-                registry.addTraffic(
+                registry.addModifiedTraffic(
                     &sessionId,
                     TrafficDirection::Up,
+                    &originalPayload,
                     &packet.payload,
                 );
                 registry.recordUdpPacket(TrafficDirection::Up);
@@ -323,31 +325,32 @@ pub async fn runUdpAssociation(
                 let Some(connection) = pluginConnections.get(&source) else {
                     continue;
                 };
-                let mut payload = payload;
-                match pluginHost
+                let originalPayload = payload;
+                let payload = match pluginHost
                     .processDataPlaneBytes(
                         connection,
                         StreamDirection::ServerToClient,
-                        payload,
+                        originalPayload.clone(),
                     )
                     .await
                 {
-                    DataPlaneActionResult::Forward { bytes } => payload = bytes,
+                    DataPlaneActionResult::Forward { bytes } => bytes,
                     DataPlaneActionResult::Drop | DataPlaneActionResult::Hold => {
                         registry.recordDroppedUdpPacket();
                         continue;
                     }
                     DataPlaneActionResult::Close => break Ok(()),
-                }
+                };
                 let responsePacket = encodeUdpPacket(source, &payload)?;
                 if responsePacket.len() > config.udpMaxPacketSize {
                     registry.recordDroppedUdpPacket();
                     continue;
                 }
                 clientSocket.send_to(&responsePacket, clientAddress).await?;
-                registry.addTraffic(
+                registry.addModifiedTraffic(
                     &sessionId,
                     TrafficDirection::Down,
+                    &originalPayload,
                     &payload,
                 );
                 registry.recordUdpPacket(TrafficDirection::Down);

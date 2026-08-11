@@ -693,6 +693,7 @@ fn assembleGroup<Observation>(
             direction,
             payload: udpBytes[udpOffset + 8..udpOffset + udpLength].to_vec(),
             capturedAtMilliseconds,
+            modifications: Vec::new(),
         }),
         packetCount: group.packetCount,
         packetBytes: group.packetBytes,

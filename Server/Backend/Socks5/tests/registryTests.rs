@@ -11,6 +11,31 @@ use socks5_core::registry::SessionRegistry;
 const legacyCapturedStreamLimit: usize = 8 * 1024 * 1024;
 const allocatedChunkBudget: usize = 64 * 1024;
 
+/// 验证 SOCKS 写线正文保存修改后字节，同时单包索引保留 WPE 修改前后的精确差异。
+#[test]
+fn modifiedTrafficKeepsFinalBytesAndDifference() {
+    let registry = SessionRegistry::new(8);
+    let sessionId = registry.create("127.0.0.1:10000".to_owned());
+    registry.addModifiedTraffic(
+        &sessionId,
+        TrafficDirection::Up,
+        &[0x03, 0x06, 0x02, 0x01],
+        &[0x03, 0x06, 0x02, 0x00],
+    );
+
+    let snapshot = registry.snapshots().pop().expect("应保留活动会话");
+    assert_eq!(
+        snapshot.capturedBytesUp.toVec(),
+        vec![0x03, 0x06, 0x02, 0x00]
+    );
+    let packets = snapshot.capturedPackets.forDirection(TrafficDirection::Up);
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].modifications.len(), 1);
+    assert_eq!(packets[0].modifications[0].offsetBytes, 3);
+    assert_eq!(packets[0].modifications[0].originalBytes, vec![0x01]);
+    assert_eq!(packets[0].modifications[0].modifiedBytes, vec![0x00]);
+}
+
 /// 验证先订阅再读取基线时，落入快照窗口的创建事件仍保留在订阅队列中。
 #[tokio::test]
 async fn subscriptionBeforeSnapshotDoesNotLoseWindowEvent() {

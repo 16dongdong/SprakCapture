@@ -40,9 +40,19 @@ impl UdpDatagramProcessor for UnifiedPacketFilterProcessor {
                 .pluginHost
                 .processFinalWireBytes(&metadata, direction, event.payload.clone())
             {
-                DataPlaneActionResult::Forward { bytes } => {
-                    UdpDatagramDecision::Forward { payload: bytes }
-                }
+                DataPlaneActionResult::Forward { bytes } => UdpDatagramDecision::Forward {
+                    modifications: plugin_host::deriveWireByteModifications(&event.payload, &bytes)
+                        .into_iter()
+                        .map(
+                            |modification| process_capture_core::UdpDatagramModification {
+                                offsetBytes: modification.offsetBytes,
+                                originalBytes: modification.originalBytes,
+                                modifiedBytes: modification.modifiedBytes,
+                            },
+                        )
+                        .collect(),
+                    payload: bytes,
+                },
                 DataPlaneActionResult::Drop | DataPlaneActionResult::Hold => {
                     UdpDatagramDecision::Drop
                 }

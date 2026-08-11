@@ -1248,6 +1248,14 @@ export const bodyHandleMetaSchema = z
   });
 
 /** 描述流中一个可独立查看的有界片段；范围始终指向同侧聚合正文，避免协议重复传输片段正文。 */
+export const streamPacketModificationSchema = z
+  .object({
+    offsetBytes: z.number().int().nonnegative().max(maximumRecordingBodyBytes),
+    originalBytes: z.array(z.number().int().min(0).max(255)),
+    modifiedBytes: z.array(z.number().int().min(0).max(255)),
+  })
+  .strict();
+
 export const streamPacketSchema = z
   .object({
     sequence: safeUnsignedIntegerSchema,
@@ -1260,6 +1268,8 @@ export const streamPacketSchema = z
     storedBytes: z.number().int().positive().max(maximumRecordingBodyBytes),
     originalBytes: safeUnsignedIntegerSchema,
     truncated: z.boolean(),
+    action: z.enum(["forward", "replace", "drop", "close"]).default("forward"),
+    modifications: z.array(streamPacketModificationSchema).default([]),
   })
   .strict()
   .superRefine((packet, context) => {
@@ -1272,6 +1282,18 @@ export const streamPacketSchema = z
         path: ["originalBytes"],
         message: "stream packet lengths are inconsistent",
       });
+    }
+    for (const [index, modification] of packet.modifications.entries()) {
+      if (
+        modification.offsetBytes + modification.modifiedBytes.length >
+        packet.storedBytes
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["modifications", index],
+          message: "stream packet modification is outside stored bytes",
+        });
+      }
     }
   });
 

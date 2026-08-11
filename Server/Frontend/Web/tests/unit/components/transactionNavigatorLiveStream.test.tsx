@@ -146,6 +146,8 @@ function createStreamDetail(
       storedBytes: 1,
       originalBytes: 1,
       truncated: false,
+      action: "forward",
+      modifications: [],
     })),
   };
 }

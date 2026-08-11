@@ -45,6 +45,7 @@ import type { StreamPacketSelection } from "./streamPacketSelection";
 import { useAxisSplitter } from "./useAxisSplitter";
 import {
   formatTransactionBytes,
+  formatTransactionTimestamp,
   presentTransactionStatus,
   presentStreamTransport,
   transactionStatusTone,
@@ -407,10 +408,12 @@ function HexDumpView({
   bodyBytes,
   asciiLabel,
   ariaLabel,
+  modifications = [],
 }: {
   bodyBytes: Uint8Array;
   asciiLabel: string;
   ariaLabel: string;
+  modifications?: TransactionDetail["requestPackets"][number]["modifications"];
 }) {
   const hexDumpRef = useRef<HTMLDivElement>(null);
   const { asciiContentRef, characterProbeRef, hexContentRef, lineLengths } =
@@ -509,14 +512,20 @@ function HexDumpView({
   ]);
 
   const renderedHexText =
-    linkedSelection === null || linkedSelection.source === "hex"
-      ? hexText
-      : renderLinkedHexSelection(
-          hexText,
-          linkedSelection.bytes,
+    modifications.length > 0
+      ? renderInlineHexDifferences(
+          bodyBytes,
+          modifications,
           lineLengths.hexBytes,
-          "hex",
-        );
+        )
+      : linkedSelection === null || linkedSelection.source === "hex"
+        ? hexText
+        : renderLinkedHexSelection(
+            hexText,
+            linkedSelection.bytes,
+            lineLengths.hexBytes,
+            "hex",
+          );
   const renderedAsciiText =
     linkedSelection === null || linkedSelection.source === "ascii"
       ? asciiText
@@ -619,6 +628,101 @@ function HexDumpView({
       </section>
     </div>
   );
+}
+
+/**
+ * 把 WPE 的原始字节与最终写线字节直接嵌入十六进制正文；偏移使用修改后正文坐标，普通字节仍按当前面板宽度换行。
+ * 运行上下文：仅用于已带修改元数据的单包 Hex 视图，避免另设差异面板造成正文与差异来回对照。
+ * 失败语义：越界或相互重叠的异常差异会被忽略，最终写线正文仍完整显示，不会伪造缺失字节。
+ */
+function renderInlineHexDifferences(
+  bodyBytes: Uint8Array,
+  modifications: TransactionDetail["requestPackets"][number]["modifications"],
+  bytesPerLine: number,
+): ReactNode[] {
+  const orderedModifications = [...modifications].sort(
+    (left, right) => left.offsetBytes - right.offsetBytes,
+  );
+  const rendered: ReactNode[] = [];
+  let bodyOffset = 0;
+  let modificationIndex = 0;
+  let pendingText = "";
+
+  /** 按正文逻辑偏移追加普通字节；到达面板行宽时写入换行，输入始终是已格式化的两位十六进制文本。 */
+  const appendToken = (token: string, logicalOffset: number) => {
+    if (logicalOffset > 0 && logicalOffset % bytesPerLine === 0) {
+      pendingText += "\n";
+    } else if (logicalOffset > 0) {
+      pendingText += " ";
+    }
+    pendingText += token;
+  };
+  /** 在插入高亮节点前提交连续普通文本，空缓冲不产生无意义 React 子节点。 */
+  const flushText = () => {
+    if (pendingText.length === 0) {
+      return;
+    }
+    rendered.push(pendingText);
+    pendingText = "";
+  };
+
+  while (
+    bodyOffset < bodyBytes.length ||
+    modificationIndex < orderedModifications.length
+  ) {
+    const modification = orderedModifications[modificationIndex];
+    if (
+      modification !== undefined &&
+      (modification.offsetBytes < bodyOffset ||
+        modification.offsetBytes > bodyBytes.length)
+    ) {
+      modificationIndex += 1;
+      continue;
+    }
+    if (modification !== undefined && modification.offsetBytes === bodyOffset) {
+      const modificationEnd = bodyOffset + modification.modifiedBytes.length;
+      const matchesStoredBytes =
+        modificationEnd <= bodyBytes.length &&
+        modification.modifiedBytes.every(
+          (byte, index) => bodyBytes[bodyOffset + index] === byte,
+        );
+      if (matchesStoredBytes) {
+        if (bodyOffset > 0 && bodyOffset % bytesPerLine === 0) {
+          pendingText += "\n";
+        } else if (bodyOffset > 0) {
+          pendingText += " ";
+        }
+        flushText();
+        const originalText = modification.originalBytes
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join(" ");
+        const modifiedText = modification.modifiedBytes
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join(" ");
+        rendered.push(
+          <mark
+            className="hexDumpModifiedByte"
+            key={`${modification.offsetBytes}:${modificationIndex}`}
+            title={`WPE 修改：${originalText || "∅"} → ${modifiedText || "∅"}`}
+          >
+            {originalText || "∅"}/{modifiedText || "∅"}
+          </mark>,
+        );
+        bodyOffset = modificationEnd;
+        modificationIndex += 1;
+        continue;
+      }
+      modificationIndex += 1;
+      continue;
+    }
+    appendToken(
+      bodyBytes[bodyOffset]!.toString(16).padStart(2, "0"),
+      bodyOffset,
+    );
+    bodyOffset += 1;
+  }
+  flushText();
+  return rendered;
 }
 
 /**
@@ -974,6 +1078,7 @@ function BodyView({
           asciiLabel={t("viewer.body.hexAscii")}
           key={`${transactionId}:${side}:${packet?.sequence ?? "body"}:${displayedBody.meta.storedBytes}`}
           bodyBytes={preview.bodyBytes}
+          modifications={packet?.modifications}
         />
       ) : (
         <pre className={`bodyPreview bodyPreview--${view}`}>
@@ -1249,6 +1354,9 @@ function StreamPacketInspector({
   selection: StreamPacketSelection;
 }) {
   const { t } = useTranslation();
+  const [packetView, setPacketView] = useState<"overview" | "content">(
+    "content",
+  );
   const readyDetail = detailState.kind === "ready" ? detailState.detail : null;
   const packet =
     readyDetail === null
@@ -1266,6 +1374,11 @@ function StreamPacketInspector({
         : readyDetail.responseBody;
   const packetUnavailable =
     readyDetail !== null && (packet === null || bodyMeta === null);
+
+  useEffect(() => {
+    // 单包检查以写线正文为主要工作面；切换叶节点时直接打开内容，概览由作者按需查看。
+    setPacketView("content");
+  }, [selection.sequence, selection.side, selection.transactionId]);
 
   useEffect(() => {
     if (!packetUnavailable) {
@@ -1307,24 +1420,109 @@ function StreamPacketInspector({
     );
   }
   const directionLabel = selection.side === "request" ? "请求" : "响应";
+  const relativeMilliseconds = Math.max(
+    0,
+    packet.capturedAtMilliseconds -
+      detailState.detail.transaction.timings.startAtMilliseconds,
+  );
   return (
     <div className="streamPacketInspector">
-      <header>
-        <div>
-          <strong>{directionLabel}</strong>
-          <span>第 {packet.sequence} 包</span>
+      <div
+        aria-label="数据包视图"
+        className="compactTabs streamPacketTabs"
+        role="tablist"
+      >
+        <button
+          aria-selected={packetView === "overview"}
+          className={packetView === "overview" ? "isActive" : ""}
+          onClick={() => setPacketView("overview")}
+          role="tab"
+          type="button"
+        >
+          <Info aria-hidden="true" size={13} />
+          概览
+        </button>
+        <button
+          aria-selected={packetView === "content"}
+          className={packetView === "content" ? "isActive" : ""}
+          onClick={() => setPacketView("content")}
+          role="tab"
+          type="button"
+        >
+          <PanelTop aria-hidden="true" size={13} />
+          内容
+        </button>
+      </div>
+      {packetView === "overview" ? (
+        <section aria-label="数据包概览" className="streamPacketOverview">
+          <header>
+            <div>
+              <strong>{directionLabel}</strong>
+              <span>第 {packet.sequence} 包</span>
+            </div>
+            <span>{formatTransactionBytes(packet.originalBytes)}</span>
+          </header>
+          <dl>
+            <div>
+              <dt>方向</dt>
+              <dd>{directionLabel}</dd>
+            </div>
+            <div>
+              <dt>包序号</dt>
+              <dd>#{packet.sequence}</dd>
+            </div>
+            <div>
+              <dt>捕获时间</dt>
+              <dd>
+                {formatTransactionTimestamp(
+                  packet.capturedAtMilliseconds,
+                  "—",
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>相对时间</dt>
+              <dd>+{relativeMilliseconds} ms</dd>
+            </div>
+            <div>
+              <dt>原始大小</dt>
+              <dd>{formatTransactionBytes(packet.originalBytes)}</dd>
+            </div>
+            <div>
+              <dt>已保存大小</dt>
+              <dd>{formatTransactionBytes(packet.storedBytes)}</dd>
+            </div>
+            <div>
+              <dt>正文偏移</dt>
+              <dd>{formatTransactionBytes(packet.storedOffsetBytes)}</dd>
+            </div>
+            <div>
+              <dt>完整性</dt>
+              <dd>{packet.truncated ? "已截断" : "完整"}</dd>
+            </div>
+            <div>
+              <dt>修改状态</dt>
+              <dd>
+                {packet.modifications.length > 0
+                  ? `WPE 已修改（${packet.modifications.length} 处）`
+                  : "未修改"}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : (
+        <div className="streamPacketContent">
+          <BodyView
+            bodyMeta={bodyMeta}
+            key={`${selection.transactionId}:${selection.side}:${selection.sequence}`}
+            packet={packet}
+            side={selection.side}
+            sourceUrl=""
+            transactionId={selection.transactionId}
+            view="hex"
+          />
         </div>
-        <span>{formatTransactionBytes(packet.originalBytes)}</span>
-      </header>
-      <BodyView
-        bodyMeta={bodyMeta}
-        key={`${selection.transactionId}:${selection.side}:${selection.sequence}`}
-        packet={packet}
-        side={selection.side}
-        sourceUrl=""
-        transactionId={selection.transactionId}
-        view="hex"
-      />
+      )}
     </div>
   );
 }

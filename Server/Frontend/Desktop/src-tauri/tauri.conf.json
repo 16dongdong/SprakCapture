@@ -68,19 +68,30 @@
   },
   "bundle": {
     "active": true,
+    "copyright": "Copyright © 2026 Sprak Capture contributors",
+    "shortDescription": "网络代理、流量捕获与协议分析工具",
+    "longDescription": "统一处理 HTTP、SOCKS5 与 WinDivert 流量，提供实时录制、协议分析和封包规则。",
+    "licenseFile": "../../../../LICENSE",
     "resources": {
       "resources/*": "",
       "../../../Backend/ProcessCapture/vendor/LICENSE.WinDivert.txt": "",
       "../../../Backend/ProcessCapture/vendor/WinDivert.dll": "",
       "../../../Backend/ProcessCapture/vendor/WinDivert64.sys": ""
     },
-    "targets": [
-      "nsis",
-      "msi"
-    ],
+    "targets": ["nsis"],
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "displayLanguageSelector": true,
+        "installMode": "both",
+        "languages": ["SimpChinese", "English"]
+      }
+    }
   }
 }

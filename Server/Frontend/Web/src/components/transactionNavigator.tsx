@@ -1122,6 +1122,20 @@ function StreamPacketList({
             selectedPacket?.transactionId === selection.transactionId &&
             selectedPacket.side === selection.side &&
             selectedPacket.sequence === selection.sequence;
+          // 旧录制缺少 action 字段时由完整差异反推出替换，升级后无需清空既有事务也能正确显示。
+          const effectiveAction =
+            packet.action === "forward" && packet.modifications.length > 0
+              ? "replace"
+              : packet.action;
+          const actionLabel =
+            effectiveAction === "replace"
+              ? "替换"
+              : effectiveAction === "drop"
+                ? "丢弃"
+                : effectiveAction === "close"
+                  ? "关闭连接"
+                  : "";
+          const packetLabel = `${directionLabel}${actionLabel ? ` ${actionLabel}` : ""}`;
           return (
             <TransactionContextMenu
               {...contextActions}
@@ -1129,15 +1143,17 @@ function StreamPacketList({
               transaction={transaction}
             >
               <button
-                aria-label={`${directionLabel} ${formatTransactionBytes(packet.originalBytes)}`}
+                aria-label={`${packetLabel} ${formatTransactionBytes(packet.originalBytes)}`}
                 className={`streamPacketItem${selected ? " isSelected" : ""}`}
                 onClick={() => onSelectPacket(selection)}
                 onContextMenu={() => onSelectPacket(selection)}
-                title={`${directionLabel}：${formatTransactionBytes(packet.originalBytes)}`}
+                title={`${packetLabel}：${formatTransactionBytes(packet.originalBytes)}`}
                 type="button"
               >
                 <span className="streamTreeBranch" aria-hidden="true" />
-                <span>{directionLabel}</span>
+                <span className={actionLabel ? `streamPacketAction is${effectiveAction}` : undefined}>
+                  {packetLabel}
+                </span>
                 <span>· {formatTransactionBytes(packet.originalBytes)}</span>
               </button>
             </TransactionContextMenu>

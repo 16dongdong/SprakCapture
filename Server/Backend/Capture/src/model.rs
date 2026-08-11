@@ -338,6 +338,30 @@ pub struct StreamPacket {
     pub storedBytes: usize,
     pub originalBytes: u64,
     pub truncated: bool,
+    #[serde(default)]
+    pub action: StreamPacketAction,
+    #[serde(default)]
+    pub modifications: Vec<StreamPacketModification>,
+}
+
+/// 标识流片段经过最终写线规则后的结果；查看器据此显示普通、替换、丢弃或关闭连接。
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StreamPacketAction {
+    #[default]
+    Forward,
+    Replace,
+    Drop,
+    Close,
+}
+
+/// 描述单包最终写线正文中的一段变化；原值和新值均完整保留，前端无需根据规则反推差异。
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StreamPacketModification {
+    pub offsetBytes: usize,
+    pub originalBytes: Vec<u8>,
+    pub modifiedBytes: Vec<u8>,
 }
 
 /// 在线性化读锁内返回事务摘要、两侧头、正文元信息和有界流片段索引；正文实际字节仍按需读取。

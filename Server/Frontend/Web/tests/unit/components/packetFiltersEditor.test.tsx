@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PacketFilterConfiguration } from "@/api/protocol";
 import { PacketFiltersEditor } from "@/components/packetFiltersEditor";
@@ -9,7 +9,11 @@ import { PacketFiltersEditor } from "@/components/packetFiltersEditor";
  * 以真实状态承载滤镜编辑器，验证二级窗口提交的是完整可持久化对象。
  * 失败语义：组件没有发出变更时 output 保持原配置，让测试直接暴露编辑或提交断链。
  */
-function EditorHarness() {
+function EditorHarness({
+  onApply,
+}: {
+  onApply?: (configuration: PacketFilterConfiguration) => Promise<boolean>;
+}) {
   const [configuration, setConfiguration] = useState<PacketFilterConfiguration>(
     { enabled: true, rules: [] },
   );
@@ -18,6 +22,7 @@ function EditorHarness() {
       <PacketFiltersEditor
         configuration={configuration}
         disabled={false}
+        onApply={onApply}
         onChange={setConfiguration}
       />
       <output data-testid="configuration">
@@ -50,14 +55,14 @@ describe("PacketFiltersEditor", () => {
       fireEvent.change(screen.getByLabelText("目标主机"), {
         target: { value: "*.example.com" },
       });
-      fireEvent.paste(screen.getByLabelText("搜索 0000"), {
+      fireEvent.paste(screen.getByLabelText("搜索 00"), {
         clipboardData: { getData: () => "01 00 ?? 03 00" },
       });
       fireEvent.change(screen.getByLabelText("执行动作"), {
         target: { value: "modify" },
       });
-      fireEvent.click(screen.getByLabelText("替换 0000"));
-      fireEvent.paste(screen.getByLabelText("替换 0000"), {
+      fireEvent.click(screen.getByLabelText("替换 00"));
+      fireEvent.paste(screen.getByLabelText("替换 00"), {
         clipboardData: { getData: () => "01 00 06 03 00 03 03" },
       });
       fireEvent.click(screen.getByRole("button", { name: "应用" }));
@@ -77,6 +82,47 @@ describe("PacketFiltersEditor", () => {
       });
     },
     // 该用例刻意渲染搜索与替换各 512 个真实输入框，jsdom 的全量无障碍查询需要独立预算。
+    15_000,
+  );
+
+  it(
+    "在规则窗口点击一次应用即提交整份滤镜配置",
+    async () => {
+      const onApply = vi.fn(async () => true);
+      render(<EditorHarness onApply={onApply} />);
+      fireEvent.click(screen.getByRole("button", { name: "添加滤镜" }));
+      fireEvent.change(screen.getByLabelText("规则名称"), {
+        target: { value: "立即应用" },
+      });
+      fireEvent.paste(screen.getByLabelText("搜索 00"), {
+        clipboardData: { getData: () => "01 02" },
+      });
+      fireEvent.click(screen.getByLabelText("替换 00"));
+      fireEvent.paste(screen.getByLabelText("替换 00"), {
+        clipboardData: { getData: () => "03 04" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "应用" }));
+
+      await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      expect(onApply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enabled: true,
+          rules: [
+            expect.objectContaining({
+              name: "立即应用",
+              pattern: "01 02",
+              replacement: "03 04",
+            }),
+          ],
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "编辑封包滤镜" }),
+        ).not.toBeInTheDocument(),
+      );
+    },
     15_000,
   );
 });

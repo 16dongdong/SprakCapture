@@ -27,6 +27,14 @@ interface PacketFilterByteGridProps {
 }
 
 /**
+ * 按 WPE 网格习惯显示十六进制偏移：首屏使用 00、01、02，超过 FF 后自然扩展为 100–1FF。
+ * 偏移是位置标签而非固定宽度地址，禁止补成 0000 造成无意义占宽。
+ */
+function formatByteOffset(index: number): string {
+  return index.toString(16).toUpperCase().padStart(2, "0");
+}
+
+/**
  * 将 WPE、连续十六进制、C 数组、`\\xNN` 和常见十六进制转储统一解析为字节单元。
  * 运行上下文：仅处理用户主动粘贴到本地滤镜编辑器的文本；通配符 `??` 保持原义。
  * 失败语义：任意非分隔残留、奇数半字节或超过 512 字节时返回 null，调用方不会覆盖现有草稿。
@@ -152,7 +160,10 @@ export function PacketFilterByteGrid({
     onReplacementChange(value);
   };
 
-  /** 更新单个网格单元；只接受半字节编辑态、完整字节或通配符。 */
+  /**
+   * 更新单个网格单元；只接受半字节编辑态、完整字节或通配符。
+   * 半字节必须保留到作者继续输入或主动修正，不能在自动换格触发的 blur 中补零；否则 blur 闭包会用旧草稿覆盖刚提交的完整字节。
+   */
   const updateCell = (row: ByteGridRow, index: number, rawValue: string) => {
     const normalized = rawValue.trim().toUpperCase();
     if (!/^(?:[0-9A-F]{0,2}|\?{0,2})$/.test(normalized)) {
@@ -167,15 +178,6 @@ export function PacketFilterByteGrid({
     if (normalized.length === 2 && index + 1 < visibleCellCount) {
       inputRefs.current.get(`${row}:${index + 1}`)?.focus();
       setSelection({ row, anchor: index + 1, focus: index + 1 });
-    }
-  };
-
-  /** 把单个半字节补成完整字节，避免离开单元格后留下不可提交的隐式状态。 */
-  const completeCell = (row: ByteGridRow, index: number) => {
-    const cells = cellsForRow(row);
-    const cell = cells[index] ?? "";
-    if (/^[0-9A-Fa-f]$/.test(cell)) {
-      updateCell(row, index, cell.padStart(2, "0"));
     }
   };
 
@@ -319,16 +321,12 @@ export function PacketFilterByteGrid({
                     inputRefs.current.set(key, element);
                   }
                 }}
-                aria-label={`${rowLabel} ${index
-                  .toString(16)
-                  .toUpperCase()
-                  .padStart(4, "0")}`}
+                aria-label={`${rowLabel} ${formatByteOffset(index)}`}
                 disabled={disabled}
                 inputMode="text"
                 maxLength={2}
                 spellCheck={false}
                 value={cells[index] ?? ""}
-                onBlur={() => completeCell(row, index)}
                 onChange={(event) => updateCell(row, index, event.target.value)}
                 onClick={(event: MouseEvent<HTMLInputElement>) => {
                   selectCell(row, index, event.shiftKey);
@@ -371,7 +369,7 @@ export function PacketFilterByteGrid({
               <th scope="col">{t("tools.packetFilters.byteOffset")}</th>
               {Array.from({ length: visibleCellCount }, (_unused, index) => (
                 <th scope="col" key={index}>
-                  {index.toString(16).toUpperCase().padStart(4, "0")}
+                  {formatByteOffset(index)}
                 </th>
               ))}
             </tr>

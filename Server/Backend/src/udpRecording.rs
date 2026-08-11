@@ -19,8 +19,8 @@ use std::{
 };
 
 use capture_core::{
-    BeginTransaction, BodyWrite, MessageSide, RecordingRuleAction, RecordingSession,
-    TransactionCompletion, TransactionProtocol,
+    BeginTransaction, BodyWrite, MessageSide, RecordingRuleAction, RecordingSession, StreamPacket,
+    StreamPacketModification, TransactionCompletion, TransactionProtocol,
 };
 use location_core::ResolvedLocation;
 use process_capture_core::{UdpDatagramDirection, UdpDatagramEvent, UdpDatagramSink};
@@ -59,7 +59,9 @@ const legacySpoolFileName: &str = "udpCapture.spool";
 const maximumSpoolBytes: u64 = 2 * 1024 * 1024 * 1024;
 const maximumSegmentBytes: u64 = 64 * 1024 * 1024;
 const frameLengthBytes: u64 = 8;
-const maximumHeaderBytes: u32 = 4 * 1024;
+// WPE 差异同时保留原值和写线值，最坏情况下整份 64 KiB UDP 正文都发生变化；JSON 数组会放大元数据，
+// 因此头预算必须覆盖该合法上界，同时仍以固定 1 MiB 限制损坏 spool 的分配规模。
+const maximumHeaderBytes: u32 = 1024 * 1024;
 const maximumPayloadBytes: u32 = 65_535;
 pub const captureQueueCapacity: usize = 1_024;
 const processIdentityCacheLifetime: Duration = Duration::from_secs(1);
@@ -78,6 +80,8 @@ struct SpoolHeader {
     targetAddress: SocketAddr,
     direction: UdpDatagramDirectionWire,
     capturedAtMilliseconds: u64,
+    #[serde(default)]
+    modifications: Vec<process_capture_core::UdpDatagramModification>,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -583,6 +587,7 @@ impl UdpRecordingSpool {
                 },
                 payload,
                 capturedAtMilliseconds: header.capturedAtMilliseconds,
+                modifications: header.modifications,
             },
             segmentId: segment.id,
             endOffset,
@@ -775,6 +780,7 @@ impl UdpRecordingSpool {
                 UdpDatagramDirection::Down => UdpDatagramDirectionWire::Down,
             },
             capturedAtMilliseconds: captured.event.capturedAtMilliseconds,
+            modifications: captured.event.modifications.clone(),
         };
         state
             .processGenerations
@@ -1331,14 +1337,30 @@ async fn persistUdpDatagram(
     let Some(transactionId) = transactionId else {
         return Ok(());
     };
+    let side = match event.direction {
+        UdpDatagramDirection::Up => MessageSide::Request,
+        UdpDatagramDirection::Down => MessageSide::Response,
+    };
     let payloadBytes = event.payload.len() as u64;
+    let capturedAtMilliseconds = event.capturedAtMilliseconds;
+    let packetAction = if event.modifications.is_empty() {
+        capture_core::StreamPacketAction::Forward
+    } else {
+        capture_core::StreamPacketAction::Replace
+    };
+    let modifications = event
+        .modifications
+        .into_iter()
+        .map(|modification| StreamPacketModification {
+            offsetBytes: modification.offsetBytes,
+            originalBytes: modification.originalBytes,
+            modifiedBytes: modification.modifiedBytes,
+        })
+        .collect();
     recording
         .storeBody(
             &transactionId,
-            match event.direction {
-                UdpDatagramDirection::Up => MessageSide::Request,
-                UdpDatagramDirection::Down => MessageSide::Response,
-            },
+            side,
             BodyWrite {
                 bytes: event.payload,
                 originalBytes: payloadBytes,
@@ -1348,11 +1370,27 @@ async fn persistUdpDatagram(
         )
         .await?;
     recording
+        .storeStreamPackets(
+            &transactionId,
+            side,
+            vec![StreamPacket {
+                sequence: 1,
+                capturedAtMilliseconds,
+                storedOffsetBytes: 0,
+                storedBytes: payloadBytes as usize,
+                originalBytes: payloadBytes,
+                truncated: false,
+                action: packetAction,
+                modifications,
+            }],
+        )
+        .await?;
+    recording
         .commit(
             &transactionId,
             TransactionCompletion {
                 statusCode: 0,
-                endAtMilliseconds: event.capturedAtMilliseconds,
+                endAtMilliseconds: capturedAtMilliseconds,
                 contentType: binaryContentType.to_owned(),
             },
         )

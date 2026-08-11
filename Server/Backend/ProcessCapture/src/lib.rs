@@ -119,6 +119,16 @@ pub struct UdpDatagramEvent {
     pub direction: UdpDatagramDirection,
     pub payload: Vec<u8>,
     pub capturedAtMilliseconds: u64,
+    pub modifications: Vec<UdpDatagramModification>,
+}
+
+/// 描述 WinDivert UDP 最终写线正文中的一段插件变化；偏移使用修改后正文坐标。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UdpDatagramModification {
+    pub offsetBytes: usize,
+    pub originalBytes: Vec<u8>,
+    pub modifiedBytes: Vec<u8>,
 }
 
 /// 表示统一封包数据面对一个 WinDivert UDP 数据报作出的最终写线决定。
@@ -127,7 +137,10 @@ pub struct UdpDatagramEvent {
 /// `Drop` 与 `Close` 对无连接 UDP 都表示不回注当前数据报，区别仅保留给上层规则语义。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UdpDatagramDecision {
-    Forward { payload: Vec<u8> },
+    Forward {
+        payload: Vec<u8>,
+        modifications: Vec<UdpDatagramModification>,
+    },
     Drop,
     Close,
 }

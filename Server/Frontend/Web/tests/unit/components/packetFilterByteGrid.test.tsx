@@ -69,15 +69,15 @@ describe("PacketFilterByteGrid", () => {
     expect(screen.getAllByRole("row")).toHaveLength(3);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.getAllByRole("textbox")).toHaveLength(1_024);
-    expect(screen.getByLabelText("搜索 0000")).toHaveAttribute(
+    expect(screen.getByLabelText("搜索 00")).toHaveAttribute(
       "maxlength",
       "2",
     );
-    expect(screen.getByLabelText("搜索 01FF")).not.toBeDisabled();
-    expect(screen.getByLabelText("替换 01FF")).not.toBeDisabled();
+    expect(screen.getByLabelText("搜索 1FF")).not.toBeDisabled();
+    expect(screen.getByLabelText("替换 1FF")).not.toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText("搜索 0001"));
-    fireEvent.click(screen.getByLabelText("搜索 0003"), { shiftKey: true });
+    fireEvent.click(screen.getByLabelText("搜索 01"));
+    fireEvent.click(screen.getByLabelText("搜索 03"), { shiftKey: true });
     const copied: Record<string, string> = {};
     fireEvent.copy(screen.getByTestId("packet-byte-grid"), {
       clipboardData: {
@@ -94,7 +94,7 @@ describe("PacketFilterByteGrid", () => {
     expect(screen.getByTestId("pattern")).toHaveTextContent("01");
     expect(screen.getByTestId("replacement")).toHaveTextContent("AA BB CC DD");
 
-    fireEvent.paste(screen.getByLabelText("搜索 0001"), {
+    fireEvent.paste(screen.getByLabelText("搜索 01"), {
       clipboardData: { getData: () => "10 20 30" },
     });
     expect(screen.getByTestId("pattern")).toHaveTextContent("01 10 20 30");
@@ -104,7 +104,7 @@ describe("PacketFilterByteGrid", () => {
   it("允许直接编辑最后一个偏移并将搜索行限制为 512 字节", () => {
     render(<GridHarness />);
 
-    fireEvent.change(screen.getByLabelText("搜索 01FF"), {
+    fireEvent.change(screen.getByLabelText("搜索 1FF"), {
       target: { value: "A5" },
     });
     const pattern = screen.getByTestId("pattern").textContent ?? "";
@@ -113,37 +113,51 @@ describe("PacketFilterByteGrid", () => {
     expect(bytes.at(-1)).toBe("A5");
   });
 
+  it("输入完整字节并自动移到下一格时不会被失焦事件覆盖为零", () => {
+    render(<GridHarness />);
+    const byteCell = screen.getByLabelText("搜索 03");
+
+    fireEvent.change(byteCell, { target: { value: "A" } });
+    expect(byteCell).toHaveValue("A");
+    fireEvent.change(byteCell, { target: { value: "A5" } });
+    fireEvent.blur(byteCell);
+
+    expect(screen.getByLabelText("搜索 03")).toHaveValue("A5");
+    expect(screen.getByTestId("pattern")).toHaveTextContent("01 02 03 A5");
+    expect(document.activeElement).toBe(screen.getByLabelText("搜索 04"));
+  });
+
   it("替换行以空白显示通配位置并保持后续输入偏移", () => {
     render(<GridHarness />);
 
-    fireEvent.click(screen.getByLabelText("替换 0000"));
-    fireEvent.paste(screen.getByLabelText("替换 0000"), {
+    fireEvent.click(screen.getByLabelText("替换 00"));
+    fireEvent.paste(screen.getByLabelText("替换 00"), {
       clipboardData: { getData: () => "01 00 06 03 00 03 03" },
     });
     expect(screen.getByTestId("replacement")).toHaveTextContent(
       "01 00 06 03 00 03 03",
     );
-    expect(screen.getByLabelText("替换 0006")).not.toBeDisabled();
+    expect(screen.getByLabelText("替换 06")).not.toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText("替换 0002"));
+    fireEvent.click(screen.getByLabelText("替换 02"));
     fireEvent.keyDown(screen.getByTestId("packet-byte-grid"), {
       key: "Delete",
     });
     expect(screen.getByTestId("replacement")).toHaveTextContent(
       "01 00 ?? 03 00 03 03",
     );
-    expect(screen.getByLabelText("替换 0002")).toHaveValue("");
-    expect(screen.getByLabelText("替换 0003")).toHaveValue("03");
+    expect(screen.getByLabelText("替换 02")).toHaveValue("");
+    expect(screen.getByLabelText("替换 03")).toHaveValue("03");
 
-    fireEvent.change(screen.getByLabelText("替换 0008"), {
+    fireEvent.change(screen.getByLabelText("替换 08"), {
       target: { value: "A" },
     });
-    expect(screen.getByLabelText("替换 0007")).toHaveValue("");
-    expect(screen.getByLabelText("替换 0008")).toHaveValue("A");
-    fireEvent.change(screen.getByLabelText("替换 0008"), {
+    expect(screen.getByLabelText("替换 07")).toHaveValue("");
+    expect(screen.getByLabelText("替换 08")).toHaveValue("A");
+    fireEvent.change(screen.getByLabelText("替换 08"), {
       target: { value: "A5" },
     });
-    expect(screen.getByLabelText("替换 0007")).toHaveValue("");
-    expect(screen.getByLabelText("替换 0008")).toHaveValue("A5");
+    expect(screen.getByLabelText("替换 07")).toHaveValue("");
+    expect(screen.getByLabelText("替换 08")).toHaveValue("A5");
   });
 });

@@ -4,7 +4,7 @@
 use capture_core::{MessageSide, RecordingConfiguration, RecordingSession, TransactionProtocol};
 use process_capture_core::{
     ProcessCapture, ProcessCaptureConfiguration, UdpDatagramDirection, UdpDatagramEvent,
-    UdpDatagramSink,
+    UdpDatagramModification, UdpDatagramSink,
 };
 use proxy_backend::udpRecording::{
     SpoolSegmentRemover, UdpProcessNameResolver, UdpRecordingCoordination, UdpRecordingSpool,
@@ -109,6 +109,11 @@ async fn recordsIpv4AndIpv6UdpDatagramsWithoutTruncation() {
                 direction: UdpDatagramDirection::Up,
                 payload: requestPayload.clone(),
                 capturedAtMilliseconds: 100,
+                modifications: vec![UdpDatagramModification {
+                    offsetBytes: 3,
+                    originalBytes: vec![0x01],
+                    modifiedBytes: vec![0x00],
+                }],
             },
         )
         .await;
@@ -123,6 +128,7 @@ async fn recordsIpv4AndIpv6UdpDatagramsWithoutTruncation() {
                 direction: UdpDatagramDirection::Down,
                 payload: responsePayload.clone(),
                 capturedAtMilliseconds: 101,
+                modifications: Vec::new(),
             },
         )
         .await;
@@ -149,6 +155,20 @@ async fn recordsIpv4AndIpv6UdpDatagramsWithoutTruncation() {
                 .expect("读取 IPv4 UDP 请求正文")
                 .bytes,
             requestPayload
+        );
+        let requestDetail = recording
+            .getTransactionDetail(&request.transactionId)
+            .await
+            .expect("读取 IPv4 UDP 请求详情");
+        assert_eq!(requestDetail.requestPackets.len(), 1);
+        assert_eq!(requestDetail.requestPackets[0].modifications.len(), 1);
+        assert_eq!(
+            requestDetail.requestPackets[0].modifications[0].originalBytes,
+            vec![0x01]
+        );
+        assert_eq!(
+            requestDetail.requestPackets[0].modifications[0].modifiedBytes,
+            vec![0x00]
         );
         let response = summaries
             .iter()
@@ -204,6 +224,7 @@ async fn drainsDiskSpoolIntoRecordingWithoutReorderingOrLoss() {
                     direction: UdpDatagramDirection::Up,
                     payload,
                     capturedAtMilliseconds: u64::from(sequence),
+                    modifications: Vec::new(),
                 })
                 .expect("高负载事件应进入固定内存队列");
             // 让生产持续跨越多个调度周期，测试才能证明 reader 在 writer 尚未关闭时
@@ -262,6 +283,7 @@ fn preservesEmergencyPacketWhenCaptureQueueIsFull() {
             direction: UdpDatagramDirection::Up,
             payload: u32::try_from(sequence).unwrap().to_be_bytes().to_vec(),
             capturedAtMilliseconds: u64::try_from(sequence).unwrap(),
+            modifications: Vec::new(),
         })
         .expect("固定容量内事件应成功入队");
     }
@@ -274,6 +296,7 @@ fn preservesEmergencyPacketWhenCaptureQueueIsFull() {
             direction: UdpDatagramDirection::Up,
             payload: emergencySequence.to_be_bytes().to_vec(),
             capturedAtMilliseconds: u64::from(emergencySequence),
+            modifications: Vec::new(),
         })
         .expect_err("第一个超限事件必须显式故障");
     assert!(error.contains("emergency"));
@@ -312,6 +335,7 @@ fn resumesPartiallyAcknowledgedSegmentWithoutDuplicateRecording() {
                 direction: UdpDatagramDirection::Up,
                 payload: sequence.to_be_bytes().to_vec(),
                 capturedAtMilliseconds: u64::from(sequence),
+                modifications: Vec::new(),
             })
             .expect("写入 UDP 游标恢复帧");
     }
@@ -363,6 +387,7 @@ fn retainsConsumedSegmentWhenDiskDeletionFails() {
             direction: UdpDatagramDirection::Up,
             payload: b"delete-lock".to_vec(),
             capturedAtMilliseconds: 1,
+            modifications: Vec::new(),
         })
         .expect("写入 UDP 删除失败帧");
     let entry = spool
@@ -438,6 +463,7 @@ fn appendsWhileConsumedSegmentDeletionIsBlocked() {
                 direction: UdpDatagramDirection::Up,
                 payload: payload.clone(),
                 capturedAtMilliseconds: u64::from(firstSegmentFrames),
+                modifications: Vec::new(),
             })
             .expect("写入 UDP 慢删除分段帧");
         if spoolFiles(&temporaryDirectory.path().join("capture"))
@@ -485,6 +511,7 @@ fn appendsWhileConsumedSegmentDeletionIsBlocked() {
             direction: UdpDatagramDirection::Up,
             payload: b"writer-remains-live".to_vec(),
             capturedAtMilliseconds: 9_999,
+            modifications: Vec::new(),
         });
         appendSender.send(result).expect("返回 UDP 慢删除追加结果");
     });
@@ -519,6 +546,7 @@ fn continuesReadingWhenWriterRotatesAfterFrontWasAcknowledged() {
                 direction: UdpDatagramDirection::Up,
                 payload: payload.clone(),
                 capturedAtMilliseconds: u64::from(firstSegmentFrames),
+                modifications: Vec::new(),
             })
             .expect("写入 UDP 延迟滚动首段");
         firstSegmentFrames += 1;
@@ -557,6 +585,7 @@ fn continuesReadingWhenWriterRotatesAfterFrontWasAcknowledged() {
             direction: UdpDatagramDirection::Up,
             payload: payload.clone(),
             capturedAtMilliseconds: 99_999,
+            modifications: Vec::new(),
         })
         .expect("触发 UDP 延迟滚动");
     let next = readReceiver
@@ -599,6 +628,7 @@ async fn clearSkipsOldBacklogAndRecordsNewEpoch() {
         direction: UdpDatagramDirection::Up,
         payload: b"old-before-clear".to_vec(),
         capturedAtMilliseconds: 1,
+        modifications: Vec::new(),
     })
     .expect("加入 UDP clear 前积压");
     coordination
@@ -613,6 +643,7 @@ async fn clearSkipsOldBacklogAndRecordsNewEpoch() {
         direction: UdpDatagramDirection::Up,
         payload: b"new-after-clear".to_vec(),
         capturedAtMilliseconds: 2,
+        modifications: Vec::new(),
     })
     .expect("加入 UDP clear 后正文");
     runtime
@@ -648,6 +679,7 @@ async fn durableClearBarrierSkipsOldProcessBacklog() {
             direction: UdpDatagramDirection::Up,
             payload: b"cleared-before-crash".to_vec(),
             capturedAtMilliseconds: 1,
+            modifications: Vec::new(),
         })
         .expect("写入 clear 前旧进程积压");
     oldSpool.close();
@@ -730,6 +762,7 @@ async fn retriesAcknowledgementAfterCommitWithoutDuplicateTransaction() {
         direction: UdpDatagramDirection::Up,
         payload: b"commit-before-ack".to_vec(),
         capturedAtMilliseconds: 1,
+        modifications: Vec::new(),
     })
     .expect("写入 UDP ACK 重试正文");
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -801,6 +834,7 @@ async fn recreatesHealthyPipelineForEveryServiceGeneration() {
             direction: UdpDatagramDirection::Up,
             payload: generation.to_be_bytes().to_vec(),
             capturedAtMilliseconds: u64::from(generation),
+            modifications: Vec::new(),
         })
         .expect("新 UDP 代际必须接受首包");
         runtime.stopAndDrain().await.expect("排空 UDP 录制代际");

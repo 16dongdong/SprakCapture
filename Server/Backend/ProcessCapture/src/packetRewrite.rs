@@ -253,6 +253,7 @@ pub(crate) fn udpDatagramEvent(
         direction,
         payload: packet[parsed.payloadOffset..parsed.payloadEnd].to_vec(),
         capturedAtMilliseconds,
+        modifications: Vec::new(),
     })
 }
 

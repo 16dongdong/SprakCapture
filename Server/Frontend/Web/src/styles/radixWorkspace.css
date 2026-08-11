@@ -870,12 +870,41 @@ body:has(.independentWindowSurface),
   white-space: nowrap;
 }
 
+.streamPacketContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.hexDumpModifiedByte {
+  background: #ffd6d6;
+  border-radius: 2px;
+  color: #b00020;
+  font-weight: 800;
+  padding: 0 2px;
+}
+
 /* 单包行用方向文案与字节数形成稳定的两列读序，树枝只表达层级而不承担文本分隔。 */
 .transactionNavigatorPane .streamPacketItem > :nth-child(2) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 最终写线动作只强调文字；禁止给网格列铺背景，避免高流量时形成整片红色条带。 */
+.transactionNavigatorPane .streamPacketAction {
+  font-weight: 700;
+}
+
+.transactionNavigatorPane .streamPacketAction.isreplace {
+  color: var(--danger);
+}
+
+.transactionNavigatorPane .streamPacketAction.isdrop,
+.transactionNavigatorPane .streamPacketAction.isclose {
+  color: var(--warning-foreground);
 }
 
 .transactionNavigatorPane .streamTreeBranch {
@@ -904,23 +933,73 @@ body:has(.independentWindowSurface),
   grid-template-rows: auto minmax(0, 1fr);
 }
 
-.streamPacketInspector > header {
+.streamPacketTabs {
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.streamPacketOverview {
+  min-height: 0;
+  padding: 12px 14px;
+  overflow: auto;
+}
+
+.streamPacketOverview > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 50px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--gray-a4);
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 6px;
 }
 
-.streamPacketInspector > header > div {
+.streamPacketOverview > header > div {
   display: grid;
   gap: 2px;
 }
 
-.streamPacketInspector > header span {
+.streamPacketOverview > header span {
   color: var(--gray-11);
   font-size: 12px;
+}
+
+/* 单包概览与原始正文分离成页签；概览保持高密度网格，避免元数据挤压十六进制查看空间。 */
+.streamPacketOverview dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  margin: 0;
+  border: 1px solid var(--gray-a4);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.streamPacketOverview dl > div {
+  min-width: 0;
+  padding: 6px 8px;
+  border-right: 1px solid var(--gray-a4);
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.streamPacketOverview dt {
+  color: var(--gray-11);
+  font-size: 10px;
+}
+
+.streamPacketOverview dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--gray-12);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .streamPacketOverview dl {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
 }
 
 .streamDirectionSummary {

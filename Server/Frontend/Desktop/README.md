@@ -30,7 +30,8 @@ pnpm build
 
 - 开发态构建 debug 后端，并通过 `PROXY_SERVICE_PATH` 向 Tauri 进程注入绝对产物路径。
 - 打包态构建 release 后端，将产物暂存为 `src-tauri/resources/proxyService.exe`；稳定的
-  `bundle.resources` 映射会把它收录为安装目录中的 `proxyService.exe`。
+  `bundle.resources` 映射会把它收录为安装目录中的 `proxyService.exe`。首发只生成中英文
+  NSIS 安装包，安装时可以选择当前用户或所有用户以及自定义安装目录。
 - 后端默认把持久化数据写入 `proxyService.exe` 同级的 `data/`，主配置路径为
   `data/configuration.json`；安装到非系统盘后不会再使用 C 盘用户数据目录。
 - Tauri 结束后始终删除暂存资源，构建产物只保留在 Cargo `target` 目录，不进入源码提交。

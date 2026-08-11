@@ -279,6 +279,20 @@ impl SocksTransactionProjector {
                             storedBytes: packet.storedBytes,
                             originalBytes: packet.originalBytes,
                             truncated: packet.originalBytes > packet.storedBytes as u64,
+                            action: if packet.modifications.is_empty() {
+                                capture_core::StreamPacketAction::Forward
+                            } else {
+                                capture_core::StreamPacketAction::Replace
+                            },
+                            modifications: packet
+                                .modifications
+                                .into_iter()
+                                .map(|modification| capture_core::StreamPacketModification {
+                                    offsetBytes: modification.offsetBytes,
+                                    originalBytes: modification.originalBytes,
+                                    modifiedBytes: modification.modifiedBytes,
+                                })
+                                .collect(),
                         })
                         .collect(),
                 )

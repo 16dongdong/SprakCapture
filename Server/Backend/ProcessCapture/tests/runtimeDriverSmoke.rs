@@ -73,7 +73,10 @@ impl UdpDatagramProcessor for RewritingUdpProcessor {
         } else {
             event.payload.clone()
         };
-        Ok(UdpDatagramDecision::Forward { payload })
+        Ok(UdpDatagramDecision::Forward {
+            payload,
+            modifications: Vec::new(),
+        })
     }
 }
 

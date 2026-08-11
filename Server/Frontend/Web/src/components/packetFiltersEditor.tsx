@@ -19,6 +19,7 @@ interface PacketFiltersEditorProps {
   configuration: PacketFilterConfiguration;
   disabled: boolean;
   onChange(configuration: PacketFilterConfiguration): void;
+  onApply?(configuration: PacketFilterConfiguration): Promise<boolean>;
 }
 
 const transports: readonly PacketFilterTransport[] = ["any", "tcp", "udp"];
@@ -55,6 +56,7 @@ export function PacketFiltersEditor({
   configuration,
   disabled,
   onChange,
+  onApply,
 }: PacketFiltersEditorProps) {
   const { t } = useTranslation();
   const [dialog, setDialog] = useState<{
@@ -86,8 +88,11 @@ export function PacketFiltersEditor({
     onChange({ ...configuration, rules });
   };
 
-  /** 保存二级窗口中的完整规则；新增和编辑使用同一提交边界。 */
-  const saveDialogRule = () => {
+  /**
+   * 保存二级窗口中的完整规则，并在宿主提供提交动作时立即热应用整份配置。
+   * 网络提交失败时保留窗口和草稿，成功后才关闭，避免“规则已保存”的错误反馈或要求用户再点一次外层应用。
+   */
+  const saveDialogRule = async () => {
     if (dialog === null) {
       return;
     }
@@ -107,7 +112,11 @@ export function PacketFiltersEditor({
     } else {
       rules[dialog.index] = normalizedRule;
     }
-    onChange({ ...configuration, rules });
+    const nextConfiguration = { ...configuration, rules };
+    onChange(nextConfiguration);
+    if (onApply !== undefined && !(await onApply(nextConfiguration))) {
+      return;
+    }
     setDialog(null);
   };
 
