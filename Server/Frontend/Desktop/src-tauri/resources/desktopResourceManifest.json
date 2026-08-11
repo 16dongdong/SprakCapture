@@ -1,0 +1,4 @@
+{
+  "proxyServiceTarget": "proxyService.exe",
+  "description": "构建脚本在 Tauri 运行期间暂存后端产物，安装包将同目录资源映射到资源根目录。"
+}

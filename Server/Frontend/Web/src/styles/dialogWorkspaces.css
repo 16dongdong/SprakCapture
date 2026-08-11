@@ -1,0 +1,1800 @@
+/* 独立设置与工具窗口保持连续级联，避免窗口布局规则分散后出现尺寸回归。 */
+
+.dialogBackdrop {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  inset: 0;
+  padding: 20px;
+  place-items: center;
+  background: rgb(30 33 39 / 28%);
+  backdrop-filter: blur(2px);
+}
+
+.confirmDialog {
+  width: min(420px, 100%);
+  padding: 18px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-window);
+}
+
+.confirmDialog h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.confirmDialog p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.confirmDialogOption {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  gap: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.confirmDialogOption input {
+  margin: 0;
+}
+.confirmDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  gap: 8px;
+}
+.confirmDialogActions button,
+.emptyState button,
+.messageViewerToolbar button,
+.clearFilterButton {
+  min-height: var(--control-height);
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.dangerButton {
+  color: #fff;
+  background: var(--danger) !important;
+  border-color: #a93344 !important;
+}
+
+/* 二级规则编辑器覆盖当前设置窗口，但不提供重复的标题栏关闭按钮。 */
+.ruleEditorBackdrop {
+  position: fixed;
+  z-index: 140;
+  display: grid;
+  inset: 0;
+  padding: 24px;
+  overflow: auto;
+  place-items: center;
+  background: rgb(30 33 39 / 34%);
+  backdrop-filter: blur(2px);
+}
+
+.ruleEditorDialog {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-window);
+}
+
+.ruleEditorDialog > form {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: inherit;
+}
+
+.ruleEditorDialogHeader,
+.ruleEditorDialogFooter {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.ruleEditorDialogHeader {
+  background: var(--surface-toolbar);
+  border-bottom: 1px solid var(--border);
+}
+
+.ruleEditorDialogHeader h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.ruleEditorDialogBody {
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.ruleEditorDialogFooter {
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.ruleEditorDialogFooter button {
+  min-width: 82px;
+  min-height: var(--control-height);
+  padding: 0 12px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.ruleEditorDialogFooter button[type="submit"] {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+}
+
+.ruleEditorDialogFooter button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.sslSettingsDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(760px, 100%);
+  height: min(700px, calc(100vh - 40px));
+  max-height: min(860px, calc(100vh - 40px));
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-window);
+}
+
+.sslDialogHeader,
+.sslDialogFooter {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.sslDialogHeader {
+  justify-content: space-between;
+  background: var(--surface-toolbar);
+  border-bottom: 1px solid var(--border);
+}
+
+.sslDialogHeader h2 {
+  margin: 0;
+  font-size: clamp(15px, 1.6vw, 18px);
+}
+.sslDialogHeader p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.sslDialogBody {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  padding: 14px 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+.sslDialogFooter {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.sslDialogFooter button,
+.sslRuleHeader button,
+.sslCertificateActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  padding: 0 11px;
+  gap: 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.sslDialogFooter button:hover:not(:disabled),
+.sslRuleHeader button:hover:not(:disabled),
+.sslCertificateActions button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.sslEnabledRow {
+  display: flex;
+  align-items: flex-start;
+  padding: 11px 12px;
+  gap: 10px;
+  background: var(--surface-selected);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+.sslEnabledRow input {
+  margin-top: 2px;
+}
+.sslEnabledRow span {
+  display: grid;
+  gap: 3px;
+}
+.sslEnabledRow small {
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.sslRuleGroup,
+.sslCertificateCard {
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.sslRuleHeader,
+.sslCertificateHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+}
+.sslRuleHeader > div,
+.sslCertificateHeading > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.sslRuleHeader span,
+.sslCertificateHeading span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.sslRuleRows {
+  display: grid;
+  margin-top: 9px;
+  gap: 7px;
+}
+.sslRuleRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.sslRuleRow > svg {
+  color: var(--accent);
+}
+.sslAdvanced input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 9px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.sslRuleSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 9px;
+  gap: 12px;
+  color: var(--text);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.sslRuleSummary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.sslRuleSummary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sslRuleSummary span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.sslHostRuleFields {
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.34fr);
+}
+
+.sslInstalledBadge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  color: var(--success) !important;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-radius: 999px;
+}
+.sslCertificateCard dl {
+  display: grid;
+  margin: 11px 0 0;
+  gap: 8px;
+}
+.sslCertificateCard dl div {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.3fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.sslCertificateCard dt {
+  color: var(--text-secondary);
+}
+.sslCertificateCard dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.sslClientCertificateCard {
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.sslClientCertificateCard.isTargeted {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 9%, transparent),
+    var(--shadow-sm);
+}
+
+.sslClientCertificateCard > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sslClientCertificateCard > header div,
+.sslClientCertificateList article div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sslClientCertificateCard > header span,
+.sslClientCertificateList span,
+.sslClientCertificateList small,
+.sslHttpVersions {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.sslClientCertificateForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 9px;
+}
+
+.sslClientCertificateForm label,
+.sslClientCertificateFile {
+  display: grid;
+  gap: 5px;
+}
+
+.sslClientCertificateForm label > span,
+.sslClientCertificateFile > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* 原生 file 复合控件在独立窗口的按钮命中不稳定；可见按钮承担唯一点击区域并反馈已选择状态。 */
+.sslClientCertificateFile .fileChoiceButton {
+  justify-self: start;
+  max-width: 100%;
+}
+
+/* 输入保留在渲染树内供 showPicker 调用，但不创建第二个点击区域或可见原生按钮。 */
+.sslClientCertificateNativeFile {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sslClientCertificateForm .primaryButton {
+  justify-self: start;
+}
+
+.sslClientCertificateList {
+  display: grid;
+  gap: 6px;
+}
+
+.sslClientCertificateList > p,
+.sslHttpVersions {
+  margin: 0;
+}
+
+.sslClientCertificateList article {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px 28px;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+}
+
+.sslClientCertificateList small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .sslClientCertificateForm {
+    grid-template-columns: 1fr;
+  }
+}
+.sslCertificateActions {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 11px;
+  gap: 7px;
+}
+.dangerTextButton {
+  color: var(--danger) !important;
+}
+
+.sslAdvanced,
+.sslHelp {
+  background: var(--surface-toolbar);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+.sslAdvanced summary,
+.sslHelp summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.sslAdvanced > div,
+.sslHelp > ol,
+.sslHelp > p {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+.sslAdvanced > div {
+  display: grid;
+  gap: 10px;
+}
+.sslAdvanced label:not(.sslCheckboxRow) {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(100px, 0.5fr);
+  align-items: center;
+  gap: 12px;
+}
+.sslCheckboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sslAdvanced p,
+.sslHelp p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.sslHelp ol {
+  padding-left: 30px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.sslUnavailable {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  color: var(--text-secondary);
+}
+
+.toolSettingsDialog,
+.breakpointHitDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-window);
+}
+
+/*
+ * 可切换规则和编辑区域的工具对话框使用稳定工作区高度。规则选择、校验消息和异步加载
+ * 只能改变中间滚动区，不能重新计算整个窗口尺寸，否则居中布局会在每次切换时上下抖动。
+ */
+.toolSettingsDialog--visual {
+  width: min(980px, calc(100vw - 32px));
+  height: min(620px, calc(100vh - 40px));
+}
+
+.breakpointHitDialog {
+  width: min(920px, calc(100vw - 32px));
+  height: min(660px, calc(100vh - 40px));
+}
+
+.toolDialogHeader,
+.toolDialogFooter {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.toolDialogHeader {
+  justify-content: space-between;
+  background: var(--surface-toolbar);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolDialogHeader > div {
+  min-width: 0;
+}
+
+.toolDialogHeader h2 {
+  margin: 0;
+  font-size: clamp(15px, 1.6vw, 18px);
+}
+
+.toolDialogHeader p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: 1.45;
+}
+
+.toolDialogBody {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  padding: 14px 16px;
+  gap: 12px;
+  overflow: auto;
+}
+
+/*
+ * 独立窗口正文占据固定的可滚动轨道。Grid 默认的 normal 对齐会把隐式 auto 行均分到整段剩余高度，
+ * 使一个开关或“添加规则”按钮膨胀到数百像素。所有表单栈都从顶部按内容高度排列；真正需要工作区
+ * 高度的规则编辑器继续由自身 min-height 和内部 minmax(0, 1fr) 轨道管理。
+ */
+:is(
+  .toolEditorFields,
+  .toolFormGrid,
+  .listenerRuleList,
+  .toolVisualEditor,
+  .toolOptionPanel,
+  .toolFieldGrid,
+  .toolLocationFields,
+  .protocolSettingsBody,
+  .protocolSettingsSection,
+  .protocolUploadFields,
+  .protocolRouteGrid,
+  .repeatDialog > form,
+  .repeatEditorFields,
+  .repeatAdvancedFields,
+  .repeatRequestGrid,
+  .repeatHeaders
+) {
+  align-content: start;
+}
+
+/* 规则主从编辑器是正文工作区而不是普通控件；开关保持内容高度后，仅让编辑器接收剩余空间。 */
+.toolDialogBody:has(> .toolRuleEditor) {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+}
+
+/* M5 文件化工具和辅助监听器共用紧凑字段网格，窄窗口时由既有响应式规则收束为单列。 */
+.toolEditorFields,
+.listenerRuleList {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.toolFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.toolEditorFields label:not(.toolEnabledRow),
+.toolFormGrid label,
+.listenerRule > label:not(.toolEnabledRow) {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.toolEditorFields label > span,
+.toolFormGrid label > span,
+.listenerRule > label > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  font-weight: 600;
+}
+
+/*
+ * M5 表单曾把复选框也按文本输入框拉伸到 100%，导致镜像选项出现整块勾选框，
+ * 自动保存表单的“包含正文”行还会撑出横向滚动条。仅约束可编辑字段，保留复选框的
+ * 原生紧凑尺寸与工具行的 flex 布局。
+ */
+.toolEditorFields :is(input:not([type="checkbox"]), select),
+.toolFormGrid :is(input:not([type="checkbox"]), select),
+.listenerRule :is(input:not([type="checkbox"]), select) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.listenerSettingsDialog {
+  width: min(920px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 40px));
+}
+
+/* 空监听器列表只保留一个与可见外框一致的紧凑添加按钮，禁止 Grid 把命中盒扩展到整页。 */
+.listenerRuleList > button:last-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  width: auto;
+  min-height: var(--control-height);
+  padding: 0 10px;
+  gap: 5px;
+  color: var(--accent-strong);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.dialogEmptyHint {
+  margin: 0;
+  padding: 18px 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--surface-toolbar);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.listenerRule {
+  display: grid;
+  min-width: 0;
+  padding: 12px;
+  gap: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.listenerRule legend {
+  padding: 0 5px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+}
+
+.toolVisualEditor {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.toolOptionPanel {
+  display: grid;
+  padding: 12px;
+  gap: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.toolOptionColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.toolOptionColumns > div {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.toolOptionColumns > div + div {
+  padding-left: 12px;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.toolFieldHint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: 1.45;
+}
+
+.toolFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.toolFieldGrid label,
+.toolLocationFields label,
+.toolTextAreaField {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.toolFieldGrid label > span,
+.toolLocationFields label > span,
+.toolTextAreaField > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  font-weight: 600;
+}
+
+.toolFieldGrid input,
+.toolFieldGrid select,
+.toolLocationFields input,
+.toolLocationFields select,
+.toolHeaderTableWrap input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.recordingRulesEditor {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.recordingRulesSummary,
+.recordingRuleSet > header,
+.recordingRuleRow,
+.recordingRuleActions,
+.recordingRuleDialog footer {
+  align-items: center;
+  display: flex;
+}
+
+.recordingRulesSummary {
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.recordingRulesSummary label,
+.recordingRuleDialog label {
+  display: grid;
+  gap: 5px;
+}
+
+.recordingRulesSummary p,
+.recordingRuleDialog p,
+.recordingRuleRows > p {
+  color: var(--gray-11);
+  margin: 0;
+}
+
+.recordingRulesSummary button,
+.recordingRuleSet > button,
+.recordingRuleActions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.recordingRuleSetList {
+  display: grid;
+  gap: 10px;
+  max-height: min(56vh, 620px);
+  overflow: auto;
+}
+
+.recordingRuleSet {
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.recordingRuleSet > header {
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.recordingRuleSetEnabled {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+
+.recordingRuleSetEnabled input[type="text"] {
+  flex: 1;
+  font-weight: 600;
+}
+
+.recordingRuleRows {
+  display: grid;
+  gap: 4px;
+}
+
+.recordingRuleRow {
+  background: var(--gray-2);
+  border-radius: 6px;
+  gap: 9px;
+  min-height: 38px;
+  padding: 5px 7px;
+}
+
+.recordingRuleKind {
+  flex: 0 0 118px;
+}
+
+.recordingRuleRow code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recordingRuleAction {
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.recordingRuleAction--record {
+  background: var(--green-3);
+  color: var(--green-11);
+}
+.recordingRuleAction--doNotRecord {
+  background: var(--gray-4);
+  color: var(--gray-11);
+}
+.recordingRuleAction--reject {
+  background: var(--red-3);
+  color: var(--red-11);
+}
+
+.recordingRuleActions {
+  gap: 3px;
+}
+.recordingRuleActions button {
+  padding: 4px;
+}
+.recordingRulesEmpty {
+  border: 1px dashed var(--gray-7);
+  border-radius: 8px;
+  color: var(--gray-11);
+  padding: 28px;
+  text-align: center;
+}
+
+.recordingRuleDialogBackdrop {
+  align-items: center;
+  background: rgb(0 0 0 / 24%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 1100;
+}
+
+.recordingRuleDialog {
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-7);
+  border-radius: 10px;
+  box-shadow: var(--shadow-5);
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  width: min(520px, calc(100vw - 32px));
+}
+
+.recordingRuleDialog h3 {
+  margin: 0;
+}
+.recordingRuleDialog footer {
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.toolDialogBody :is(input, select, textarea):invalid,
+.breakpointDialogBody :is(input, select, textarea):invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.toolValidationMessage {
+  margin: 0;
+  padding: 9px 11px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
+  border-radius: 6px;
+  font-size: var(--font-size-description);
+  line-height: 1.45;
+}
+
+.toolWideField {
+  grid-column: 1 / -1;
+}
+
+/* 路径文本与系统选择动作共享一行；选择器是受控导入入口，文本框仍保留手工填写受管相对路径的能力。 */
+.toolPathField {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.toolPathField > label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  font-weight: 600;
+}
+
+.toolPathPicker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  gap: 7px;
+}
+
+.toolPathPickerButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--field-height);
+  padding: 0 11px;
+  gap: 6px;
+  color: var(--accent-strong);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.toolPathPickerButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.toolPathNativePicker {
+  display: none;
+}
+
+.toolTextAreaField textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: 8px;
+  resize: vertical;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  line-height: 1.5;
+}
+
+.toolCheckboxRow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.toolCheckboxRow input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.toolRuleEditor {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.32fr) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 286px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.toolMappingEditor {
+  min-height: 390px;
+}
+
+.toolRuleEditor.isDialogBased {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 154px;
+}
+
+.toolRuleEditor.isDialogBased.toolMappingEditor {
+  min-height: 190px;
+}
+
+.toolRuleEditor.isDialogBased .toolRuleListPane {
+  border-right: 0;
+}
+
+.toolRuleListPane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface-toolbar);
+  border-right: 1px solid var(--border);
+}
+
+.toolRuleListHeader,
+.toolSectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 8px;
+}
+
+.toolRuleListHeader {
+  min-height: 42px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolRuleListHeader button,
+.toolSectionHeading button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 27px;
+  padding: 0 7px;
+  gap: 4px;
+  color: var(--accent-strong);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.toolRuleListHeader button:hover:not(:disabled),
+.toolSectionHeading button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.toolRuleList,
+.toolRuleListEmpty {
+  min-width: 0;
+  overflow: auto;
+}
+
+.toolRuleList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toolRuleListEmpty,
+.toolRuleDetailEmpty {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.toolRuleListEmpty {
+  padding: 12px;
+}
+
+.toolRuleListItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolRuleListItem > button:first-child {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 9px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+}
+
+.toolRuleListItem > button:first-child:hover:not(:disabled),
+.toolRuleListItem > button:first-child.isSelected {
+  color: var(--accent-strong);
+  background: var(--surface-selected);
+}
+
+.toolRuleOrderControls {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+  gap: 1px;
+}
+
+.toolRuleMoveButton,
+.toolRuleDeleteButton {
+  flex: 0 0 auto;
+}
+
+.toolRuleDetailPane {
+  min-width: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.toolRuleDetailEmpty {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  text-align: center;
+}
+
+.toolLocationFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  gap: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+}
+
+.toolLocationFields legend {
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  font-weight: 700;
+}
+
+.toolLocationQueryField {
+  grid-column: 1 / -1;
+}
+
+.toolHeaderEditor {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.toolHeaderTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.toolHeaderTableWrap table {
+  width: 100%;
+  min-width: 440px;
+  border-spacing: 0;
+}
+
+.toolHeaderTableWrap th,
+.toolHeaderTableWrap td {
+  padding: 5px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolHeaderTableWrap th {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  font-weight: 600;
+  background: var(--surface-toolbar);
+}
+
+.toolHeaderTableWrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.toolHeaderTableWrap th:last-child,
+.toolHeaderTableWrap td:last-child {
+  width: 34px;
+  text-align: center;
+}
+
+.toolExportBody {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.toolExportBody > svg {
+  color: var(--accent);
+}
+
+.toolExportBody p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.toolEnabledRow {
+  display: flex;
+  align-items: flex-start;
+  padding: 11px 12px;
+  gap: 10px;
+  background: var(--surface-selected);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.toolEnabledRow input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.toolEnabledRow span {
+  display: grid;
+  gap: 3px;
+}
+
+.toolEnabledRow small,
+.breakpointBinaryBody small {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.toolUnavailable {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  color: var(--text-secondary);
+}
+
+.toolDialogFooter {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+}
+
+.toolDialogFooter button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  padding: 0 11px;
+  gap: 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.toolDialogFooter button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* 服务配置是持久化全局设置，使用独立页面承载“职责域导航 + 单一编辑区”。 */
+.settingsPage {
+  display: grid;
+  align-content: start;
+}
+
+.settingsPage .pageHeader {
+  width: min(1080px, 100%);
+}
+
+.settingsWorkspace {
+  display: grid;
+  grid-template-columns: minmax(156px, 0.28fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: min(1080px, 100%);
+  min-height: min(
+    620px,
+    calc(100vh - var(--toolbar-height) - var(--status-height) - 88px)
+  );
+  margin: 0 auto;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.settingsNavigation {
+  display: grid;
+  align-content: start;
+  grid-row: 1 / span 2;
+  min-width: 0;
+  padding: 8px;
+  gap: 2px;
+  background: var(--surface-toolbar);
+  border-right: 1px solid var(--border);
+}
+
+.settingsNavigation a {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 7px;
+  gap: 4px;
+  color: var(--text-secondary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+}
+
+.settingsNavigation a:hover,
+.settingsNavigation a:focus-visible {
+  color: var(--accent-strong);
+  background: var(--surface-hover);
+}
+
+.settingsNavigation a.isActive {
+  color: var(--accent-strong);
+  font-weight: 650;
+  background: var(--surface-selected);
+}
+
+.settingsNavigation small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settingsContent {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.settingsContentHeader {
+  display: flex;
+  align-items: center;
+  min-height: 43px;
+  padding: 0 var(--space-panel);
+  gap: 7px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settingsContentHeader svg {
+  color: var(--accent);
+}
+
+.settingsContentHeader h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settingsSectionBody {
+  display: flex;
+  align-items: center;
+  min-height: 114px;
+  padding: var(--space-panel);
+}
+
+.settingsLanguageSelector {
+  width: min(300px, 100%);
+  background: var(--surface-raised);
+}
+
+.settingsLanguageSelector select {
+  width: 100%;
+}
+
+/* 双列表单按各自内容高度对齐，长 textarea 不得把相邻的一行状态提示拉成整列高度。 */
+.settingsContent fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-panel);
+  gap: var(--space-panel);
+  border: 0;
+}
+
+.settingsCapacityGroups,
+.settingsListenerGroups {
+  display: grid;
+  gap: 10px;
+}
+
+.settingsListenerGroups fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-toolbar);
+}
+
+.settingsListenerGroups legend {
+  padding: 0 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settingsCheckboxRow {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 10px !important;
+}
+
+.settingsCheckboxRow input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin-top: 3px;
+}
+
+.settingsCheckboxRow span {
+  display: grid;
+  gap: 2px;
+}
+
+.settingsCheckboxRow small {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+}
+
+.settingsCapacityGroup {
+  background: var(--surface-toolbar);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settingsCapacityGroup > summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.settingsCapacityGroup > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settingsCapacityGroup[open] > summary {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settingsContent fieldset.settingsCapacityFields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.settingsContent label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+
+.settingsContent label > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+}
+
+.settingsContent input,
+.settingsContent select {
+  width: 100%;
+  min-width: 0;
+  height: var(--field-height);
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.settingsContent :is(input, select):invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.settingsContent fieldset:disabled {
+  opacity: 0.58;
+}
+
+.settingsUnavailable {
+  display: grid;
+  min-height: 184px;
+  padding: var(--space-panel);
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.settingsRestartHint {
+  margin: 0;
+  padding: 0 var(--space-panel) var(--space-panel);
+  color: var(--warning);
+  font-size: var(--font-size-description);
+}
+
+.settingsActions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.settingsActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  padding: 0 11px;
+  gap: 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.settingsActions button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.breakpointDialogBody {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.34fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.breakpointDialogBody .breakpointQueue,
+.breakpointDialogBody .breakpointMessageEditor {
+  grid-row: 1;
+}
+
+.breakpointDialogBody .toolValidationMessage {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0 14px 12px;
+}
+
+.breakpointQueue {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow: auto;
+  background: var(--surface-toolbar);
+  border-right: 1px solid var(--border);
+}
+
+.breakpointQueue button {
+  display: grid;
+  min-width: 0;
+  padding: 10px 12px;
+  gap: 3px;
+  color: var(--text-secondary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.breakpointQueue button.isSelected {
+  color: var(--accent-strong);
+  background: var(--surface-selected);
+}
+
+.breakpointQueue span {
+  overflow: hidden;
+  font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
+  font-size: var(--font-size-description);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breakpointMessageEditor {
+  display: grid;
+  min-width: 0;
+  padding: 14px 16px;
+  gap: 12px;
+  overflow: auto;
+}
+
+.breakpointHeaderEditor {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.breakpointBodyField textarea,
+.breakpointBinaryBody textarea {
+  min-height: clamp(160px, 26vh, 280px);
+}
+
+.breakpointBinaryBody textarea {
+  font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
+}
+
+.breakpointBinaryBody small {
+  display: block;
+}
+
+@media (max-width: 680px) {
+  .dialogBackdrop {
+    padding: 8px;
+  }
+  .sslSettingsDialog {
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 9px;
+  }
+  .sslDialogHeader,
+  .sslDialogFooter,
+  .sslDialogBody,
+  .toolDialogHeader,
+  .toolDialogFooter,
+  .toolDialogBody {
+    padding-right: 11px;
+    padding-left: 11px;
+  }
+  .sslCertificateCard dl div,
+  .sslAdvanced label:not(.sslCheckboxRow) {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .sslDialogFooter {
+    flex-wrap: wrap;
+  }
+  .toolSettingsDialog,
+  .breakpointHitDialog,
+  .listenerSettingsDialog {
+    max-height: calc(100vh - 16px);
+    border-radius: 9px;
+  }
+  .toolSettingsDialog--visual,
+  .breakpointHitDialog,
+  .listenerSettingsDialog {
+    height: calc(100vh - 16px);
+  }
+  .settingsWorkspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+  .settingsNavigation {
+    grid-row: auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settingsNavigation a {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 5px;
+    text-align: center;
+  }
+  .settingsNavigation small {
+    display: none;
+  }
+  .settingsActions {
+    grid-column: auto;
+  }
+  .settingsContent fieldset.settingsCapacityFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .breakpointDialogBody {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(88px, 0.28fr) minmax(0, 1fr) auto;
+  }
+  .breakpointDialogBody .breakpointQueue {
+    grid-row: 1;
+  }
+  .breakpointDialogBody .breakpointMessageEditor {
+    grid-row: 2;
+  }
+  .breakpointDialogBody .toolValidationMessage {
+    grid-row: 3;
+  }
+  .breakpointQueue {
+    grid-auto-flow: column;
+    grid-template-rows: 1fr;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .breakpointQueue button {
+    min-width: 164px;
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 0;
+  }
+  .toolOptionColumns,
+  .toolFieldGrid,
+  .toolFormGrid,
+  .toolLocationFields {
+    grid-template-columns: 1fr;
+  }
+  .toolOptionColumns > div + div {
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
+  .toolRuleEditor {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(116px, 0.32fr) minmax(0, 1fr);
+  }
+  .toolMappingEditor {
+    min-height: 500px;
+  }
+  .toolRuleListPane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toolLocationQueryField {
+    grid-column: auto;
+  }
+}

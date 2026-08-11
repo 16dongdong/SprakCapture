@@ -1,0 +1,773 @@
+{
+  "$defs": {
+    "ActionKind": {
+      "description": "标识插件对阶段事件可返回的标准动作；宿主只根据阶段和线上数据性质复验结构。",
+      "enum": [
+        "continue",
+        "modify",
+        "hold",
+        "drop",
+        "reject",
+        "respond",
+        "redirect",
+        "annotate",
+        "close"
+      ],
+      "type": "string"
+    },
+    "ContributionKind": {
+      "description": "标识插件可以向宿主注册的声明式贡献点。",
+      "enum": [
+        "settings",
+        "commands",
+        "inspectorTabs",
+        "transactionContextActions",
+        "connectionBadges",
+        "statusItems",
+        "decoders",
+        "bodyViewers",
+        "mediaRenderers",
+        "importers",
+        "exporters",
+        "workspacePanels"
+      ],
+      "type": "string"
+    },
+    "EngineRequirements": {
+      "additionalProperties": false,
+      "description": "声明插件要求的宿主和扩展 API 版本范围；安装与启用均要重新验证该边界。",
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "api"
+      ],
+      "type": "object"
+    },
+    "EventEnvelope": {
+      "additionalProperties": false,
+      "description": "定义所有运行时共享的阶段事件信封；代际由宿主保证生命周期，截止时间仅供插件参考。",
+      "properties": {
+        "apiVersion": {
+          "type": "string"
+        },
+        "connectionId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/StageContext"
+        },
+        "deadlineUnixMs": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "payload": true,
+        "pluginInstanceId": {
+          "type": "string"
+        },
+        "recordingGeneration": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "serviceGeneration": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/Stage"
+        },
+        "transactionId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "apiVersion",
+        "eventId",
+        "stage",
+        "serviceGeneration",
+        "recordingGeneration",
+        "pluginInstanceId",
+        "deadlineUnixMs",
+        "context",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "ExtensionAction": {
+      "additionalProperties": false,
+      "description": "保存插件对当前阶段的结构化决定；运行时输出必须在应用前通过内核复验。",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ActionKind"
+        },
+        "annotations": {
+          "default": [],
+          "items": true,
+          "type": "array"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        },
+        "patch": {
+          "default": [],
+          "items": true,
+          "type": "array"
+        }
+      },
+      "required": [
+        "eventId",
+        "action"
+      ],
+      "type": "object"
+    },
+    "ExtensionLimits": {
+      "additionalProperties": false,
+      "description": "描述插件作者希望展示的运行参数；宿主仅持久化和诊断，不据此限制可信 Mod。",
+      "properties": {
+        "maxOutputBytes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxPendingEvents": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxStorageBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeoutMs": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timeoutMs",
+        "maxPendingEvents",
+        "maxOutputBytes",
+        "maxStorageBytes"
+      ],
+      "type": "object"
+    },
+    "ExtensionManifest": {
+      "additionalProperties": false,
+      "description": "描述完整插件包清单；未知字段拒绝，仅 `extensions` 允许发布者保存命名空间数据。",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "configurationSchema": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contributes": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dependencies": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "description": {
+          "type": "string"
+        },
+        "engines": {
+          "$ref": "#/$defs/EngineRequirements"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "failurePolicy": {
+          "$ref": "#/$defs/FailurePolicy",
+          "default": "failClosed"
+        },
+        "id": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/ExtensionLimits",
+          "default": {
+            "maxOutputBytes": 1048576,
+            "maxPendingEvents": 128,
+            "maxStorageBytes": 67108864,
+            "timeoutMs": 50
+          }
+        },
+        "manifestVersion": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "modules": {
+          "items": {
+            "$ref": "#/$defs/ExtensionModule"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/ExtensionRuntimeManifest"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "manifestVersion",
+        "id",
+        "name",
+        "description",
+        "version",
+        "publisher",
+        "engines",
+        "runtime",
+        "modules",
+        "capabilities"
+      ],
+      "type": "object"
+    },
+    "ExtensionMatch": {
+      "additionalProperties": false,
+      "description": "描述插件订阅的连接、协议和事务范围；空字段表示该维度不限制。",
+      "properties": {
+        "cidrs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "directions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entries": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hosts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "methods": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mimeTypes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ports": {
+          "default": [],
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "processNames": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "processPaths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "protocols": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schemes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "statusCodes": {
+          "default": [],
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "transports": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ExtensionModule": {
+      "additionalProperties": false,
+      "description": "描述一个插件模块；同一包的模块共享运行时、配置和升级事务。",
+      "properties": {
+        "contributes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ContributionKind"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ModuleKind"
+        },
+        "subscriptions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StageSubscription"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ExtensionRuntimeKind": {
+      "description": "标识插件作者可自由选择的运行方式；`Native` 允许动态库直接装入代理主进程。",
+      "enum": [
+        "wasm",
+        "sidecar",
+        "nativeWorker",
+        "native",
+        "legacyNative"
+      ],
+      "type": "string"
+    },
+    "ExtensionRuntimeManifest": {
+      "additionalProperties": false,
+      "description": "描述一个插件包的运行入口；入口路径始终相对于已校验的插件版本目录。",
+      "properties": {
+        "arguments": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ExtensionRuntimeKind"
+        },
+        "protocolVersion": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "entry"
+      ],
+      "type": "object"
+    },
+    "FailurePolicy": {
+      "description": "描述运行时失败对当前阶段的处理方式；插件作者提供默认值，用户可以按实例覆盖。",
+      "enum": [
+        "failClosed",
+        "failOpen"
+      ],
+      "type": "string"
+    },
+    "InterceptionMode": {
+      "description": "标识事件对应的数据面是否允许插件改变线上内容。",
+      "enum": [
+        "intercept",
+        "observeOnly"
+      ],
+      "type": "string"
+    },
+    "ModuleKind": {
+      "description": "标识插件包内模块的职责；模块类型与运行时相互独立。",
+      "enum": [
+        "trafficHandler",
+        "streamTransformer",
+        "protocolDecoder",
+        "recordingPolicy",
+        "bodyViewer",
+        "mediaRenderer",
+        "importer",
+        "exporter",
+        "commandProvider",
+        "uiContribution",
+        "backgroundService"
+      ],
+      "type": "string"
+    },
+    "PluginExecutionOptions": {
+      "additionalProperties": false,
+      "description": "保存用户对顺序、匹配、失败策略和运行说明的权威覆盖；运行说明不产生宿主门禁。",
+      "properties": {
+        "failurePolicy": {
+          "$ref": "#/$defs/FailurePolicy",
+          "default": "failClosed"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtensionLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "moduleOrder": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "subscriptionOverrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ExtensionMatch"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "Stage": {
+      "description": "标识宿主发布给插件的稳定处理阶段；枚举值同时作为 RPC、WIT 和控制 API 的线名。",
+      "enum": [
+        "serviceStarting",
+        "serviceStarted",
+        "configurationChanged",
+        "serviceStopping",
+        "connectionAccepted",
+        "socks5Authentication",
+        "protocolClassified",
+        "targetResolving",
+        "beforeConnect",
+        "connected",
+        "connectionClosing",
+        "clientHelloObserved",
+        "certificateSelecting",
+        "tlsEstablished",
+        "tlsFailed",
+        "requestHeaders",
+        "requestBodyChunk",
+        "requestComplete",
+        "beforeUpstream",
+        "responseHeaders",
+        "responseBodyChunk",
+        "responseComplete",
+        "webSocketOpening",
+        "webSocketFrame",
+        "webSocketClosing",
+        "tcpChunk",
+        "udpDatagram",
+        "dnsMessage",
+        "beforeRecord",
+        "transactionUpdated",
+        "transactionCompleted",
+        "recordingCleared",
+        "inspectorDataRequested",
+        "commandInvoked",
+        "contextActionInvoked"
+      ],
+      "type": "string"
+    },
+    "StageContext": {
+      "additionalProperties": false,
+      "description": "保存每个阶段都可读取的稳定上下文；不适用字段使用 `None`，不以空字符串伪造身份。",
+      "properties": {
+        "address": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "direction": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entry": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "interceptionMode": {
+          "$ref": "#/$defs/InterceptionMode"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "method": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mimeType": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "default": null,
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processId": {
+          "default": null,
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processName": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processPath": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocol": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scheme": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "statusCode": {
+          "default": null,
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "transport": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "interceptionMode"
+      ],
+      "type": "object"
+    },
+    "StageSubscription": {
+      "additionalProperties": false,
+      "description": "声明模块对一个稳定阶段的订阅和默认执行顺序。",
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/ExtensionMatch",
+          "default": {
+            "cidrs": [],
+            "directions": [],
+            "entries": [],
+            "hosts": [],
+            "labels": [],
+            "methods": [],
+            "mimeTypes": [],
+            "paths": [],
+            "ports": [],
+            "processNames": [],
+            "processPaths": [],
+            "protocols": [],
+            "schemes": [],
+            "statusCodes": [],
+            "transports": []
+          }
+        },
+        "order": {
+          "default": 0,
+          "format": "int32",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/Stage"
+        }
+      },
+      "required": [
+        "stage"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "保存可被模拟宿主重放的一次阶段输入与期望动作；该格式也是 SDK 的最小跨语言夹具。",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ExtensionAction"
+    },
+    "event": {
+      "$ref": "#/$defs/EventEnvelope"
+    },
+    "manifest": {
+      "$ref": "#/$defs/ExtensionManifest"
+    },
+    "options": {
+      "$ref": "#/$defs/PluginExecutionOptions"
+    }
+  },
+  "required": [
+    "manifest",
+    "options",
+    "event",
+    "action"
+  ],
+  "title": "StageFixture",
+  "type": "object"
+}

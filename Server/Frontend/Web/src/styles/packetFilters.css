@@ -1,0 +1,242 @@
+.packetFiltersEditor {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.packetFiltersSummary,
+.packetFilterRule,
+.packetFilterRuleEnabled,
+.packetFilterRuleActions,
+.packetFiltersSummary button {
+  align-items: center;
+  display: flex;
+}
+
+.packetFiltersSummary {
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.packetFiltersSummary p {
+  color: var(--gray-11);
+  margin: 0;
+}
+
+.packetFiltersSummary button {
+  gap: 5px;
+}
+
+.packetFilterRuleList {
+  display: grid;
+  gap: 5px;
+  max-height: min(58vh, 660px);
+  overflow: auto;
+}
+
+.packetFilterRule {
+  background: var(--gray-2);
+  border: 1px solid var(--gray-6);
+  border-radius: 7px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px;
+}
+
+.packetFilterRuleEnabled {
+  flex: 0 1 270px;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.packetFilterRuleEnabled span {
+  display: grid;
+  min-width: 0;
+}
+
+.packetFilterRuleEnabled strong,
+.packetFilterRuleEnabled small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.packetFilterRuleEnabled small {
+  color: var(--gray-11);
+}
+
+.packetFilterRule code {
+  flex: 1;
+  min-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.packetFilterAction {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.packetFilterAction--modify {
+  background: var(--blue-3);
+  color: var(--blue-11);
+}
+
+.packetFilterAction--drop,
+.packetFilterAction--close {
+  background: var(--red-3);
+  color: var(--red-11);
+}
+
+.packetFilterRuleActions {
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
+.packetFilterRuleActions button {
+  padding: 4px;
+}
+
+.packetFiltersEmpty {
+  border: 1px dashed var(--gray-7);
+  border-radius: 8px;
+  color: var(--gray-11);
+  padding: 28px;
+  text-align: center;
+}
+
+.packetFilterRuleForm {
+  display: grid;
+  gap: 12px;
+}
+
+.packetFilterRuleForm label {
+  display: grid;
+  gap: 5px;
+}
+
+.packetFilterRuleForm small {
+  color: var(--gray-11);
+}
+
+.packetFilterFormGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.packetFilterCheckbox {
+  align-items: center;
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.packetByteEditor {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.packetByteHint {
+  color: var(--gray-11);
+}
+
+.packetByteGridViewport {
+  border: 1px solid var(--gray-7);
+  border-radius: 7px;
+  overflow: auto;
+}
+
+.packetByteGrid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 12px;
+  min-width: 100%;
+  table-layout: fixed;
+  width: max-content;
+}
+
+.packetByteGrid th,
+.packetByteGrid td {
+  border-bottom: 1px solid var(--gray-5);
+  border-right: 1px solid var(--gray-5);
+  height: 30px;
+  padding: 0;
+  text-align: center;
+  width: 42px;
+}
+
+.packetByteGrid th:first-child {
+  background: var(--gray-3);
+  color: var(--gray-11);
+  font-family: inherit;
+  font-weight: 600;
+  left: 0;
+  min-width: 72px;
+  position: sticky;
+  width: 72px;
+  z-index: 2;
+}
+
+.packetByteGrid thead th {
+  background: var(--gray-3);
+  color: var(--gray-11);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.packetByteGrid thead th:first-child {
+  z-index: 4;
+}
+
+.packetByteGrid input {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-family: inherit;
+  height: 30px;
+  min-width: 34px;
+  padding: 0 2px;
+  text-align: center;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.packetByteGrid input:focus {
+  background: var(--blue-2);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  outline: 0;
+}
+
+.packetByteGrid input:disabled {
+  background: var(--gray-2);
+}
+
+.packetByteCell--selected {
+  background: var(--blue-3);
+}
+
+.packetByteClipboardError {
+  color: var(--red-11);
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .packetFilterRule {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .packetFilterRuleEnabled {
+    flex-basis: calc(100% - 170px);
+  }
+
+  .packetFilterFormGrid {
+    grid-template-columns: 1fr;
+  }
+}

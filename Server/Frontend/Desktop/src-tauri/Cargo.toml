@@ -1,0 +1,32 @@
+[package]
+name = "desktop-shell"
+version = "0.1.0"
+description = "加载 Web 前端并管理本地代理服务生命周期的桌面外壳"
+edition = "2024"
+rust-version = "1.85"
+
+[lib]
+name = "desktop_shell_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "desktop-shell"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.4.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints.rust]
+non_snake_case = "allow"
+non_upper_case_globals = "allow"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+nursery = "deny"

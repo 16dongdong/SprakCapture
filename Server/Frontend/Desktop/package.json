@@ -1,0 +1,16 @@
+{
+  "name": "desktop-shell",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/desktopLifecycle.mjs dev",
+    "build": "node scripts/desktopLifecycle.mjs build",
+    "check": "node --test scripts/desktopLifecycle.test.mjs && cargo check --manifest-path src-tauri/Cargo.toml",
+    "test": "node --test scripts/desktopLifecycle.test.mjs && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:paths": "node --test scripts/desktopLifecycle.test.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  }
+}

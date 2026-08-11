@@ -1,0 +1,766 @@
+:root {
+  font-family:
+    "SF Pro Text", "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI",
+    system-ui, sans-serif;
+  color: #24272d;
+  background: #eef0f3;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --surface: #ffffff;
+  --surface-raised: #fafbfc;
+  --surface-toolbar: #f1f3f6;
+  --surface-selected: #e3edff;
+  --surface-hover: #f3f7fd;
+  --border: #cbd0d8;
+  --border-subtle: #e1e4e9;
+  --text: #24272d;
+  --text-secondary: #68707c;
+  --text-tertiary: #8a929e;
+  --accent: #3776dc;
+  --accent-strong: #2464cc;
+  --success: #3e8b61;
+  --warning: #aa7626;
+  --danger: #c64a5a;
+  --shadow-window: 0 18px 55px rgb(36 39 45 / 14%);
+  --font-size-base: clamp(12px, calc(10px + 0.29vw), 13px);
+  --font-size-title: clamp(18px, calc(13px + 0.68vw), 20px);
+  --font-size-description: clamp(11px, calc(9px + 0.29vw), 12px);
+  --toolbar-height: clamp(40px, calc(24px + 1.93vw), 44px);
+  --statusbar-height: clamp(20px, calc(14px + 0.77vw), 22px);
+  --control-height: clamp(28px, calc(20px + 0.96vw), 30px);
+  --field-height: clamp(30px, calc(22px + 0.96vw), 32px);
+  --compact-height: clamp(27px, calc(21px + 0.77vw), 29px);
+  --utility-height: clamp(34px, calc(26px + 1.15vw), 38px);
+  --space-tight: clamp(4px, 0.48vw, 6px);
+  --space-panel: clamp(10px, 1.15vw, 14px);
+  --space-page: clamp(14px, 1.92vw, 20px);
+  --motion-instant: 90ms;
+  --motion-fast: 150ms;
+  --motion-standard: 240ms;
+  --motion-emphasized: 360ms;
+  --motion-spring: cubic-bezier(0.2, 0.82, 0.2, 1);
+  --motion-exit: cubic-bezier(0.4, 0, 1, 1);
+  --focus-ring: 0 0 0 3px rgb(55 118 220 / 18%);
+  --control-shadow: 0 1px 2px rgb(26 31 40 / 8%);
+  --control-shadow-hover: 0 3px 10px rgb(26 31 40 / 12%);
+  --control-radius: 8px;
+  --control-radius-compact: 7px;
+  --control-height-standard: 32px;
+  --control-height-compact: 28px;
+  --control-border: color-mix(in srgb, var(--border) 84%, transparent);
+  --control-disabled-opacity: 0.46;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  min-height: 420px;
+  overflow: hidden;
+  font-size: var(--font-size-base);
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: var(--control-disabled-opacity);
+}
+
+[aria-busy="true"] {
+  cursor: progress;
+}
+
+:is(button, [role="button"])[aria-busy="true"] {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.965);
+  transition-duration: var(--motion-instant);
+}
+
+input,
+select,
+textarea {
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="separator"]:focus-visible {
+  outline: 1px solid rgb(55 118 220 / 62%);
+  outline-offset: 1px;
+  box-shadow: var(--focus-ring);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.applicationWindow {
+  display: grid;
+  grid-template-rows:
+    var(--toolbar-height)
+    minmax(0, 1fr)
+    var(--statusbar-height);
+  width: 100%;
+  height: 100dvh;
+  background: var(--surface);
+}
+
+.routeContent {
+  min-width: 0;
+  min-height: 0;
+}
+
+.topToolbar {
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-panel);
+  min-width: 0;
+  height: var(--toolbar-height);
+  padding: 0 var(--space-panel);
+  overflow: visible;
+  background: var(--surface-toolbar);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.mainNavigation {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 2px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.toolbarNavItem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 4px;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.toolbarNavItem:hover {
+  color: var(--text);
+  background: rgb(255 255 255 / 62%);
+}
+
+.toolbarNavItem.isActive {
+  color: var(--accent-strong);
+  background: rgb(255 255 255 / 84%);
+}
+
+.toolbarNavItem.isActive::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  content: "";
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.toolMenuHost {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+}
+
+.toolMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 166px;
+  padding: 5px;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgb(36 39 45 / 16%);
+}
+
+.toolMenu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-tight);
+  min-height: 29px;
+  padding: 0 9px;
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+}
+
+.toolMenu button:hover,
+.toolMenu button:focus-visible {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.toolMenu button.toolMenuBack {
+  color: var(--accent-strong);
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 5px 5px 0 0;
+}
+
+.toolMenuBranch svg {
+  color: var(--text-tertiary);
+}
+
+.toolQuickToggle {
+  position: relative;
+}
+
+.toolQuickToggle.isEnabled {
+  color: var(--accent-strong);
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+.toolBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  place-items: center;
+  color: #ffffff;
+  background: var(--danger);
+  border: 1px solid var(--surface-toolbar);
+  border-radius: 999px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.languageSelector {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0 6px;
+  gap: 4px;
+  color: var(--text-secondary);
+  background: rgb(255 255 255 / 58%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.languageSelector select {
+  width: 92px;
+  min-width: 0;
+  height: calc(var(--control-height) - 4px);
+  padding: 0 20px 0 3px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.iconButton {
+  display: inline-grid;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  place-items: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-subtle);
+}
+
+.iconButton:disabled {
+  color: #b3b8c0;
+}
+
+/* 快捷工具在提交自身配置时仍保留启用颜色，避免禁用态覆盖开关状态造成一次无意义的闪白。 */
+.toolQuickToggle:disabled {
+  color: var(--text-secondary);
+}
+
+.toolQuickToggle.isEnabled:disabled {
+  color: var(--accent-strong);
+}
+
+/*
+ * 状态文案在“暂停录制”和“正在更新录制状态”等不同长度之间切换时曾改变工具栏总宽度，
+ * 进而推动同组图标。测量层与可见层重叠，网格轨道恒定为候选文案的最大固有宽度。
+ */
+.stableLabel {
+  display: inline-grid;
+  min-width: 0;
+  grid-template-areas: "label";
+}
+
+.stableLabelMeasure,
+.stableLabelValue {
+  grid-area: label;
+  white-space: nowrap;
+}
+
+.stableLabelMeasure {
+  display: grid;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stableLabelMeasure > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+/* 测量层用 attr 渲染文案，避免候选串进入 textContent / 可访问名。 */
+.stableLabelMeasure > span::after {
+  content: attr(data-text);
+  white-space: nowrap;
+}
+
+.statusAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 102px;
+  height: var(--control-height);
+  padding: 0 11px;
+  gap: var(--space-tight);
+  font-size: var(--font-size-description);
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.statusAction--compact {
+  width: 100%;
+  min-width: 0;
+}
+
+.statusAction--success {
+  color: #276a47;
+  border-color: #9ac5ad;
+}
+
+.statusAction--warning {
+  color: #82560f;
+  background: #fff9eb;
+  border-color: #dcc38f;
+}
+
+.statusAction--danger {
+  color: #a93245;
+  background: #fff6f7;
+  border-color: #dfabb4;
+}
+
+.statusAction:hover:not(:disabled) {
+  border-color: #9aa4b2;
+  box-shadow: 0 1px 2px rgb(36 39 45 / 8%);
+}
+
+/* 服务请求在传输阶段只锁定触发控件，保留原有色彩和尺寸，避免浏览器默认禁用样式造成视觉跳变。 */
+.statusAction:disabled {
+  cursor: wait;
+  opacity: 1;
+}
+
+.isSpinning {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connectionStatusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-panel);
+  min-width: 0;
+  padding: 0 var(--space-panel);
+  overflow-x: auto;
+  overflow-y: hidden;
+  color: var(--text-secondary);
+  background: var(--surface-toolbar);
+  border-top: 1px solid var(--border);
+  font-size: var(--font-size-description);
+}
+
+.connectionStatusBar > span {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.statusOnline {
+  color: var(--success);
+}
+
+.statusOffline {
+  color: var(--danger);
+}
+
+.statusBarService {
+  justify-content: flex-end;
+}
+
+.recordingToggle {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0 9px;
+  gap: 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+}
+
+.recordingToggle:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border);
+}
+/* 录制文案已在稳定槽位内切换，禁用态不再降低不透明度，避免请求期间闪烁。 */
+.recordingToggle:disabled {
+  cursor: wait;
+  opacity: 1;
+}
+.recordingDot {
+  width: 8px;
+  height: 8px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+}
+.recordingToggle.isRecording .recordingDot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgb(198 74 90 / 12%);
+}
+.recordingStatus {
+  color: var(--text-secondary);
+}
+.recordingStatus.isRecording {
+  color: var(--danger);
+}
+.processManagerPage {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.processManagerPage > .pageHeader {
+  margin: 0;
+  max-width: none;
+  min-height: 0;
+  width: 100%;
+}
+
+.processManagerPage .pageHeader,
+.selectedProcessesPanel > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.processManagerPage button,
+.processSearchField div {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.processPickerPanel,
+.selectedProcessesPanel {
+  background: var(--gray-2);
+  border: 1px solid var(--gray-6);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.selectedProcessesPanel {
+  min-height: 0;
+}
+
+.processPickerPanel {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.6fr) auto;
+}
+
+.processPickerPanel label,
+.processCandidateField,
+.processSearchField {
+  display: grid;
+  gap: 5px;
+}
+
+.processPickerPanel input,
+.processCandidateTrigger {
+  box-sizing: border-box;
+  min-height: 34px;
+  width: 100%;
+}
+
+.processCandidateTrigger {
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-7);
+  border-radius: 7px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.processCandidateTrigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.processCandidateMenu {
+  max-height: min(320px, var(--radix-dropdown-menu-content-available-height));
+  min-width: var(--radix-dropdown-menu-trigger-width);
+  overflow-y: auto;
+  width: min(720px, calc(100vw - 48px));
+}
+
+.processCandidateOption {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  height: auto;
+  min-height: 50px;
+  padding: 7px 8px;
+}
+
+.processCandidateDetails {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.processCandidateDetails > strong,
+.processCandidateDetails > span,
+.processCandidateDetails > small {
+  line-height: 1.2;
+}
+
+.processCandidateDetails > span {
+  color: var(--gray-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.processCandidateDetails > small {
+  color: var(--gray-10);
+}
+
+.processIconFrame {
+  align-items: center;
+  background: var(--gray-3);
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  color: var(--gray-10);
+  display: inline-flex;
+  flex: 0 0 36px;
+  height: 36px;
+  justify-content: center;
+  overflow: hidden;
+  width: 36px;
+}
+
+.processIconFrame img {
+  height: 30px;
+  object-fit: contain;
+  width: 30px;
+}
+
+.processIconFrameLarge {
+  flex-basis: 44px;
+  height: 44px;
+  width: 44px;
+}
+
+.processIconFrameLarge img {
+  height: 36px;
+  width: 36px;
+}
+
+.selectedProcessIdentity {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.selectedProcessIdentity > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.processSearchField div {
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-7);
+  border-radius: 7px;
+  padding: 0 10px;
+}
+
+.processSearchField input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.processCaptureToggle {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.selectedProcessesPanel > header h2,
+.selectedProcessesPanel > header p {
+  margin: 0;
+}
+
+.selectedProcessesPanel > header h2 {
+  font-size: 18px;
+}
+
+.selectedProcessesPanel > header p {
+  color: var(--gray-11);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.selectedProcessList {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.selectedProcessList article {
+  align-items: center;
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-6);
+  border-radius: 9px;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.selectedProcessList article > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.selectedProcessList span,
+.selectedProcessList small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.processManagerEmpty {
+  align-items: center;
+  color: var(--gray-10);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 12px;
+}
+
+.processManagerError {
+  background: var(--red-3);
+  border: 1px solid var(--red-7);
+  border-radius: 8px;
+  color: var(--red-11);
+  padding: 10px 12px;
+}
+
+@media (max-width: 900px) {
+  .processPickerPanel {
+    grid-template-columns: 1fr;
+  }
+}

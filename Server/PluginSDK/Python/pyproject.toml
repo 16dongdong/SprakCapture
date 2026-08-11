@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capture-plugin-sdk"
+version = "2.0.0"
+description = "Sprak Capture 插件作者 SDK 与本地宿主模拟器"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sprak Capture" }]
+dependencies = []
+
+[project.scripts]
+capture-plugin-python = "capturePluginSdk.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

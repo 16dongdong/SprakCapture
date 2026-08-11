@@ -1,0 +1,33 @@
+{
+  "manifestVersion": 2,
+  "id": "example.rust-native-rewrite",
+  "name": "Rust 二进制流改写示例",
+  "description": "使用 Rust Native ABI v2 SDK 修改 TCP 与 UDP 二进制负载。",
+  "version": "1.0.0",
+  "publisher": "examples",
+  "engines": { "host": ">=1.0.0", "api": "2.x" },
+  "runtime": {
+    "kind": "native",
+    "entry": "dist/rust_native_rewrite_example.dll",
+    "protocolVersion": "2.0",
+    "arguments": []
+  },
+  "modules": [{
+    "id": "rewrite",
+    "kind": "streamTransformer",
+    "subscriptions": [
+      { "stage": "tcpChunk", "order": 0, "match": {} },
+      { "stage": "udpDatagram", "order": 0, "match": {} }
+    ],
+    "contributes": []
+  }],
+  "capabilities": [],
+  "dependencies": {},
+  "limits": {
+    "timeoutMs": 50,
+    "maxPendingEvents": 128,
+    "maxOutputBytes": 1048576,
+    "maxStorageBytes": 67108864
+  },
+  "failurePolicy": "failClosed"
+}

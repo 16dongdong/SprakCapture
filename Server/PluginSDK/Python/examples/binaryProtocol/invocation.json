@@ -1,0 +1,26 @@
+{
+  "pluginId": "example.python-binary",
+  "moduleId": "transform",
+  "moduleKind": "streamTransformer",
+  "envelope": {
+    "apiVersion": "2.0.0",
+    "eventId": "fixture-python-1",
+    "stage": "tcpChunk",
+    "serviceGeneration": 1,
+    "recordingGeneration": 1,
+    "pluginInstanceId": "example.python-binary@1.0.0#1",
+    "connectionId": "fixture-connection",
+    "transactionId": null,
+    "deadlineUnixMs": 9007199254740991,
+    "context": {
+      "transport": "tcp",
+      "protocol": "tcp",
+      "direction": "up",
+      "interceptionMode": "intercept"
+    },
+    "payload": {
+      "bytes": [0, 3, 97, 98, 99],
+      "endOfStream": false
+    }
+  }
+}

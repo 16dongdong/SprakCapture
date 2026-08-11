@@ -1,0 +1,43 @@
+{
+  "manifestVersion": 2,
+  "id": "example.binary-protocol",
+  "name": "二进制协议 Mod",
+  "description": "使用 Plugin SDK 分包、修改并重封包",
+  "version": "1.0.0",
+  "publisher": "example",
+  "engines": {
+    "host": ">=1.0.0",
+    "api": "2.x"
+  },
+  "runtime": {
+    "kind": "native",
+    "entry": "dist/plugin.dll",
+    "protocolVersion": "2.0"
+  },
+  "modules": [
+    {
+      "id": "protocol",
+      "kind": "streamTransformer",
+      "subscriptions": [
+        {
+          "stage": "tcpChunk",
+          "order": 100,
+          "match": {
+            "ports": [9000]
+          }
+        },
+        {
+          "stage": "udpDatagram",
+          "order": 100,
+          "match": {
+            "ports": [9000]
+          }
+        }
+      ]
+    }
+  ],
+  "capabilities": [
+    "author.binary-protocol"
+  ],
+  "failurePolicy": "failClosed"
+}

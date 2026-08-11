@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "independent-app-windows",
+  "description": "按需创建的设置与工具窗口可管理自身状态并继续打开同前缀业务窗口，统一 app-window-* 标签与主工作区隔离。",
+  "windows": [
+    "app-window-*"
+  ],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-unminimize"
+  ]
+}

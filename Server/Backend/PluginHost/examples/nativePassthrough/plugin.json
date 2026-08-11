@@ -1,0 +1,19 @@
+{
+  "id": "example.nativePassthrough",
+  "name": "Native 直通示例",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "runtime": "native",
+  "entry": "dist/nativePassthrough.dll",
+  "hooks": [
+    "on_connection_open",
+    "on_stream_data",
+    "on_connection_close"
+  ],
+  "priority": 100,
+  "streamMatch": {
+    "transports": [
+      "tcp"
+    ]
+  }
+}

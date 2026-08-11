@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "ActionKind": {
+      "description": "标识插件对阶段事件可返回的标准动作；宿主只根据阶段和线上数据性质复验结构。",
+      "enum": [
+        "continue",
+        "modify",
+        "hold",
+        "drop",
+        "reject",
+        "respond",
+        "redirect",
+        "annotate",
+        "close"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "保存插件对当前阶段的结构化决定；运行时输出必须在应用前通过内核复验。",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ActionKind"
+    },
+    "annotations": {
+      "default": [],
+      "items": true,
+      "type": "array"
+    },
+    "eventId": {
+      "type": "string"
+    },
+    "output": {
+      "default": null
+    },
+    "patch": {
+      "default": [],
+      "items": true,
+      "type": "array"
+    }
+  },
+  "required": [
+    "eventId",
+    "action"
+  ],
+  "title": "ExtensionAction",
+  "type": "object"
+}

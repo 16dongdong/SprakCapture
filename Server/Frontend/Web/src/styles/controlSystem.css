@@ -1,0 +1,690 @@
+/*
+ * 全局交互控件视觉与命中区约束。
+ *
+ * 本文件只管理按钮、菜单、标签页与表单控件的可见盒、状态反馈和命中边界；
+ * 页面布局与独立窗口轨道继续由 radixWorkspace.css 管理，避免单一样式文件持续膨胀。
+ */
+/*
+ * 全局控件按同一尺寸与状态模型收束。这里只约束真实交互盒，不扩大命中区；高频工具栏
+ * 使用紧凑规格，表单和确认操作使用标准规格，避免相邻页面各自定义圆角和按压幅度。
+ */
+:is(
+  .rt-Button,
+  .confirmDialogActions button,
+  .sslDialogFooter button,
+  .sslRuleHeader button,
+  .sslCertificateActions button,
+  .toolRuleListHeader button,
+  .toolSectionHeading button,
+  .toolDialogFooter button,
+  .settingsActions button,
+  .protocolInspectorSection > header button,
+  .protocolSettingsSection header > button,
+  .protocolUploadFields > button,
+  .listenerRuleList > button:last-child,
+  .emptyState button,
+  .repeatDialog footer button,
+  .pluginActionButton
+) {
+  min-height: var(--control-height-standard);
+  padding-inline: 11px;
+  border-radius: var(--control-radius);
+  box-shadow: var(--control-shadow);
+  transition:
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+:is(
+  .rt-IconButton,
+  .iconButton,
+  .transactionRepeatActions button,
+  .repeatHeaderRow button,
+  .repeatDialog > header > button
+) {
+  width: var(--control-height-compact);
+  min-width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  min-height: var(--control-height-compact);
+  padding: 0;
+  border-radius: var(--control-radius-compact);
+}
+
+:is(
+    .rt-IconButton,
+    .iconButton,
+    .transactionRepeatActions button,
+    .repeatHeaderRow button,
+    .repeatDialog > header > button
+  ):hover:not(:disabled) {
+  color: var(--gray-12);
+  background: var(--gray-a3);
+  border-color: var(--gray-a6);
+  box-shadow: var(--control-shadow-hover);
+}
+
+:is(button, [role="button"]):disabled,
+:is(button, [role="button"])[data-disabled] {
+  filter: saturate(0.72);
+  opacity: var(--control-disabled-opacity);
+  box-shadow: none;
+  transform: none;
+}
+
+:is(button, [role="button"])[aria-busy="true"] {
+  cursor: progress;
+  filter: saturate(0.82);
+  opacity: 0.72;
+  animation: controlBusyPulse 960ms ease-in-out infinite alternate;
+}
+
+/*
+ * label 只保留可访问名称和排版职责，鼠标事件由可见输入盒自己接收。文件选择器的 label
+ * 本身就是可见按钮，命中盒与外框一致，因此作为唯一例外保留自身事件。
+ */
+label:not(.fileChoiceButton) {
+  cursor: default;
+  pointer-events: none;
+}
+
+label:not(.fileChoiceButton) :is(input, select, textarea, button, a) {
+  pointer-events: auto;
+}
+
+/* 文本字段与下拉框共享内阴影和焦点反馈，嵌入搜索框仍由其更具体的无边框规则接管。 */
+:where(
+  input:not([type]),
+  input[type="text"],
+  input[type="search"],
+  input[type="url"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select
+) {
+  min-height: var(--control-height-standard);
+  color: var(--gray-12);
+  background-color: color-mix(in srgb, var(--gray-1) 92%, transparent);
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  box-shadow:
+    inset 0 1px 1px rgb(28 34 44 / 5%),
+    0 1px 1px rgb(28 34 44 / 4%);
+}
+
+:where(
+    input:not([type]),
+    input[type="text"],
+    input[type="search"],
+    input[type="url"],
+    input[type="password"],
+    input[type="number"],
+    textarea,
+    select
+  ):hover:not(:disabled) {
+  border-color: var(--gray-a8);
+  box-shadow:
+    inset 0 1px 1px rgb(28 34 44 / 5%),
+    0 2px 6px rgb(28 34 44 / 7%);
+}
+
+:where(input, textarea, select):disabled {
+  color: var(--gray-9);
+  background-color: var(--gray-a2);
+  border-color: var(--gray-a5);
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+:where(input, textarea, select):focus-visible {
+  border-color: var(--accent-8);
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+:where(input, textarea, select):active:not(:disabled) {
+  border-color: var(--gray-a9);
+  box-shadow:
+    inset 0 1px 2px rgb(28 34 44 / 10%),
+    0 1px 2px rgb(28 34 44 / 5%);
+}
+
+/*
+ * 原生勾选与单选控件改用 CSS 几何图形，避免平台主题造成尺寸跳变。背景绘制严格限制在
+ * 15px 可见盒内，文字和整行不代理点击，on/off/disabled/focus 均由输入本身表达。
+ */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  min-height: 15px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 15px;
+  vertical-align: -2px;
+  background-color: color-mix(in srgb, var(--gray-1) 94%, transparent);
+  border: 1px solid var(--gray-a8);
+  box-shadow:
+    inset 0 1px 1px rgb(28 34 44 / 6%),
+    0 1px 1px rgb(28 34 44 / 5%);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+input[type="checkbox"] {
+  border-radius: 4px;
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="checkbox"]:hover:not(:disabled),
+input[type="radio"]:hover:not(:disabled) {
+  border-color: var(--accent-8);
+  box-shadow: 0 2px 6px rgb(28 34 44 / 12%);
+}
+
+input[type="checkbox"]:active:not(:disabled),
+input[type="radio"]:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--accent-9);
+  background-image:
+    linear-gradient(45deg, transparent 42%, white 43% 60%, transparent 61%),
+    linear-gradient(135deg, transparent 38%, white 39% 54%, transparent 55%);
+  background-position:
+    2px 5px,
+    6px 2px;
+  background-repeat: no-repeat;
+  background-size:
+    6px 6px,
+    7px 9px;
+  border-color: var(--accent-9);
+  box-shadow: 0 1px 3px var(--accent-a6);
+}
+
+input[type="checkbox"]:indeterminate {
+  background:
+    linear-gradient(white, white) center / 7px 2px no-repeat,
+    var(--accent-9);
+  border-color: var(--accent-9);
+  box-shadow: 0 1px 3px var(--accent-a6);
+}
+
+input[type="radio"]:checked {
+  background:
+    radial-gradient(circle, white 0 3px, transparent 3.5px), var(--accent-9);
+  border-color: var(--accent-9);
+  box-shadow: 0 1px 3px var(--accent-a6);
+}
+
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  cursor: default;
+  filter: saturate(0.5);
+  opacity: var(--control-disabled-opacity);
+}
+
+/* 主要启停项使用开关轨道，普通多选项继续保持 15px 复选框，语义和视觉不会混用。 */
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"] {
+  position: relative;
+  width: 32px;
+  min-width: 32px;
+  height: 18px;
+  min-height: 18px;
+  flex-basis: 32px;
+  appearance: none;
+  background: var(--gray-a7);
+  border: 1px solid var(--gray-a7);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgb(28 34 44 / 12%);
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]::after {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(28 34 44 / 28%);
+  pointer-events: none;
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:checked {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:checked::after {
+  transform: translateX(14px);
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:active:not(:disabled) {
+  transform: none;
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:active:not(:disabled)::after {
+  transform: scaleX(1.12);
+  transform-origin: left center;
+}
+
+:is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:checked:active:not(:disabled)::after {
+  transform: translateX(14px) scaleX(1.12);
+  transform-origin: right center;
+}
+
+/* 兼容后续语义 Switch 与 Radix Switch，轨道本身就是完整可见及可点击区域。 */
+:is([role="switch"], .rt-SwitchRoot) {
+  position: relative;
+  width: 34px;
+  min-width: 34px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  background: var(--gray-a6);
+  border: 1px solid var(--gray-a7);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgb(28 34 44 / 12%);
+}
+
+:is([role="switch"], .rt-SwitchRoot)::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(28 34 44 / 28%);
+  pointer-events: none;
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+.rt-SwitchRoot:has(.rt-SwitchThumb)::after {
+  display: none;
+}
+
+.rt-SwitchThumb {
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(28 34 44 / 28%);
+  pointer-events: none;
+  transform: translateX(2px);
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+:is([role="switch"], .rt-SwitchRoot):is(
+  [aria-checked="true"],
+  [data-state="checked"]
+) {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+}
+
+:is([role="switch"], .rt-SwitchRoot):is(
+    [aria-checked="true"],
+    [data-state="checked"]
+  )::after {
+  transform: translateX(14px);
+}
+
+.rt-SwitchRoot:is([aria-checked="true"], [data-state="checked"])
+  .rt-SwitchThumb {
+  transform: translateX(16px);
+}
+
+:is([role="switch"], .rt-SwitchRoot):active:not(:disabled)::after {
+  transform: scaleX(1.12);
+}
+
+:is([role="switch"], .rt-SwitchRoot):is(
+    [aria-checked="true"],
+    [data-state="checked"]
+  ):active:not(:disabled)::after {
+  transform: translateX(14px) scaleX(1.12);
+}
+
+:is(button, [role="button"])[aria-pressed="true"] {
+  color: var(--accent-11);
+  border-color: var(--accent-8);
+  box-shadow:
+    inset 0 1px 2px var(--accent-a4),
+    var(--control-shadow);
+}
+
+:is(button, [role="button"])[aria-expanded="true"] {
+  color: var(--gray-12);
+  border-color: var(--gray-a8);
+}
+
+.rt-SwitchRoot:active:not(:disabled) .rt-SwitchThumb {
+  transform: translateX(2px) scaleX(1.12);
+}
+
+.rt-SwitchRoot:is([aria-checked="true"], [data-state="checked"]):active:not(
+    :disabled
+  )
+  .rt-SwitchThumb {
+  transform: translateX(16px) scaleX(1.12);
+}
+
+/* 菜单高亮采用中性灰层，不再使用整行浅蓝填充。 */
+:is(
+  .toolMenu button,
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"]
+):is(:hover, :focus-visible, [data-highlighted]) {
+  color: var(--gray-12);
+  background: var(--gray-a3);
+  outline: 0;
+  box-shadow: inset 0 0 0 1px var(--gray-a5);
+}
+
+:is(
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"]
+):active {
+  background: var(--gray-a5);
+  transform: scale(0.985);
+}
+
+:is(
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"]
+)[data-disabled] {
+  color: var(--gray-8);
+  background: transparent;
+  pointer-events: none;
+  opacity: var(--control-disabled-opacity);
+  box-shadow: none;
+}
+
+/* 标签页只改变文字、底部指示和轻阴影；非选中项悬停不铺设整块色面。 */
+:is(
+    .navigatorViewTabs button,
+    .compactTabs button,
+    .messageViewTabs button,
+    .settingsNavigation a
+  ):hover:not(.isActive) {
+  color: var(--gray-12);
+  background: transparent;
+  box-shadow: inset 0 -1px var(--gray-a7);
+}
+
+:is(
+  .navigatorViewTabs button,
+  .compactTabs button,
+  .messageViewTabs button
+):active {
+  opacity: 0.72;
+  transform: translateY(1px);
+}
+
+.toolRuleListItem > button:first-child:hover:not(:disabled):not(.isSelected),
+.pluginListItem:hover:not(:disabled):not(.isSelected) {
+  background: transparent;
+  border-color: var(--gray-a6);
+  box-shadow: inset 2px 0 var(--gray-a7);
+}
+
+.toolPathPickerButton:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--gray-a8);
+  box-shadow: var(--control-shadow-hover);
+}
+
+.contentsDivider:hover,
+.contentsDivider:focus-visible,
+.transactionContentsView[data-resizing="true"] .contentsDivider {
+  background: var(--gray-a5);
+  box-shadow: inset 0 0 0 1px var(--gray-a6);
+}
+
+.contentsDivider:hover .contentsDividerGrip,
+.contentsDivider:focus-visible .contentsDividerGrip {
+  background: var(--accent-9);
+}
+
+/* 徽标留在按钮可见盒内且不接收事件，避免角标把图标按钮命中区向外扩展。 */
+.toolBadge {
+  top: 1px;
+  right: 1px;
+  min-width: 12px;
+  height: 12px;
+  padding-inline: 2px;
+  pointer-events: none;
+}
+
+/*
+ * 状态色只落在文字、描边、图标和小型徽标上，内容表面保持中性；主操作允许使用实色，
+ * 但 hover/pressed 只改变明度与阴影，不产生大面积浅蓝闪动。
+ */
+.primaryButton {
+  color: white;
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  box-shadow: 0 2px 7px var(--accent-a5);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-10);
+  border-color: var(--accent-10);
+  box-shadow: 0 4px 12px var(--accent-a6);
+}
+
+.primaryButton:active:not(:disabled) {
+  background: var(--accent-11);
+  box-shadow: 0 1px 3px var(--accent-a5);
+}
+
+:is(.dangerButton, .dangerTextButton, .pluginUninstallButton) {
+  color: var(--danger) !important;
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--gray-a6));
+}
+
+.dangerButton {
+  color: white !important;
+  background: var(--danger) !important;
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+:is(.dangerTextButton, .pluginUninstallButton):hover:not(:disabled) {
+  color: var(--danger) !important;
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--gray-a6));
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+:is(.toolRuleListHeader button, .toolSectionHeading button):not(
+  .dangerTextButton
+) {
+  color: var(--accent-11);
+  border-color: color-mix(in srgb, var(--accent-8) 44%, var(--gray-a6));
+}
+
+:is(.toolRuleListHeader button, .toolSectionHeading button):not(
+    .dangerTextButton
+  ):hover:not(:disabled) {
+  background: var(--gray-a3);
+  border-color: var(--accent-8);
+}
+
+/* 激活和选中只用中性表面配合蓝色细线，避免整行蓝色填充。 */
+:is(
+  .navigatorViewTabs button,
+  .compactTabs button,
+  .messageViewTabs button,
+  .settingsNavigation a
+).isActive {
+  color: var(--accent-11);
+  background: var(--color-panel-solid);
+  box-shadow: inset 0 -2px var(--accent-9);
+}
+
+button.isSelected {
+  color: var(--gray-12);
+  background: var(--gray-a3) !important;
+  box-shadow: inset 3px 0 var(--accent-9) !important;
+}
+
+:is(button, [role="button"]).isEnabled,
+:is(button, [role="button"])[aria-pressed="true"] {
+  color: var(--accent-11);
+  background: var(--gray-a3);
+  border-color: var(--accent-8);
+}
+
+.toolQuickToggle.isEnabled {
+  color: var(--accent-11);
+  background: var(--gray-a3);
+  border-color: var(--accent-8);
+  box-shadow: inset 0 0 0 1px var(--accent-a4);
+}
+
+.recordingToggle.isRecording {
+  color: var(--danger);
+  background: var(--gray-a3);
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--gray-a6));
+}
+
+:is(.recordingToggle, .toolQuickToggle):disabled {
+  filter: saturate(0.68);
+  opacity: var(--control-disabled-opacity);
+  box-shadow: none;
+}
+
+:is(button, [role="button"])[aria-expanded="true"] {
+  color: var(--accent-11);
+  background: var(--gray-a3);
+  box-shadow: inset 0 0 0 1px var(--gray-a6);
+}
+
+:is([role="menuitemcheckbox"], [role="menuitemradio"]):is(
+  [aria-checked="true"],
+  [data-state="checked"]
+) {
+  color: var(--accent-11);
+  background: var(--gray-a3);
+  box-shadow: inset 2px 0 var(--accent-9);
+}
+
+/* success/warning/danger 使用小面积色彩反馈，并为未来 data-tone 状态保留统一入口。 */
+:is(
+  .statusAction--success,
+  .statusBadge--success,
+  .pluginState--enabled,
+  .validationSuccess,
+  [data-tone="success"]
+) {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 7%, var(--gray-1));
+  border-color: color-mix(in srgb, var(--success) 34%, var(--gray-a6));
+}
+
+:is(
+  .statusAction--warning,
+  .statusBadge--warning,
+  .pluginState--incompatible,
+  [data-tone="warning"]
+) {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 7%, var(--gray-1));
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--gray-a6));
+}
+
+:is(.viewerNotice:not(.viewerNotice--error), .transactionCollectionNotice) {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 6%, var(--gray-1));
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--gray-a6));
+}
+
+:is(
+  .statusAction--danger,
+  .statusBadge--danger,
+  .pluginState--failed,
+  .viewerNotice--error,
+  .toolValidationMessage,
+  .repeatDialogState--error,
+  [data-tone="danger"]
+) {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, var(--gray-1));
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--gray-a6));
+}
+
+:is(
+    .statusAction--success,
+    .statusAction--warning,
+    .statusAction--danger
+  ):hover:not(:disabled) {
+  background: var(--gray-a3);
+  box-shadow: var(--control-shadow-hover);
+}
+
+.statusAction--neutral {
+  color: var(--gray-11);
+  background: var(--gray-a2);
+  border-color: var(--gray-a6);
+}
+
+.independentWindowFeedback[role="status"] .feedbackStateDot {
+  background: var(--success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.independentWindowFeedback[role="alert"] .feedbackStateDot {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+/* 忙碌只做小幅呼吸；完成/告警/失败结果保持静态，避免持续抢夺注意力。 */
+:is([aria-busy="true"], .isPending, .isLoading) {
+  color: var(--gray-10);
+  border-color: var(--gray-a7);
+  animation: controlBusyPulse 960ms ease-in-out infinite alternate;
+}
+
+@keyframes controlBusyPulse {
+  from {
+    opacity: 0.58;
+  }
+  to {
+    opacity: 0.82;
+  }
+}

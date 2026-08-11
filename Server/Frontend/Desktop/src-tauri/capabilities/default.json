@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-default",
+  "description": "主窗口可创建受命名约束的独立工具 Webview；进程、托盘和后台生命周期仍由 Rust 外壳独占管理。",
+  "windows": [
+    "main",
+    "floating"
+  ],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-unminimize"
+  ]
+}

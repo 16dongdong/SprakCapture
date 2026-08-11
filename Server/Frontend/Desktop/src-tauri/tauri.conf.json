@@ -1,0 +1,86 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sprak Capture",
+  "version": "0.1.0",
+  "identifier": "com.sprak.capture",
+  "build": {
+    "beforeDevCommand": "pnpm --dir ../Web dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "pnpm --dir ../Web build",
+    "frontendDist": "../../Web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Sprak Capture 网络代理",
+        "url": "index.html",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 1040,
+        "minHeight": 680,
+        "center": true,
+        "preventOverflow": true,
+        "focusable": true,
+        "transparent": false,
+        "decorations": true,
+        "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
+        "closable": true,
+        "shadow": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
+        "backgroundColor": "#eef0f3"
+      },
+      {
+        "label": "floating",
+        "title": "Sprak Capture 悬浮面板",
+        "url": "/floating",
+        "width": 420,
+        "height": 320,
+        "minWidth": 360,
+        "minHeight": 260,
+        "maxWidth": 520,
+        "maxHeight": 420,
+        "visible": false,
+        "preventOverflow": true,
+        "focusable": true,
+        "transparent": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "decorations": true,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": true,
+        "shadow": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
+        "backgroundColor": "#eef0f3"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "resources": {
+      "resources/*": "",
+      "../../../Backend/ProcessCapture/vendor/LICENSE.WinDivert.txt": "",
+      "../../../Backend/ProcessCapture/vendor/WinDivert.dll": "",
+      "../../../Backend/ProcessCapture/vendor/WinDivert64.sys": ""
+    },
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
+  }
+}

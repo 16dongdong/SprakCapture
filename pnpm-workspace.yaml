@@ -1,0 +1,7 @@
+packages:
+  - "Server/Frontend/Web"
+  - "Server/Frontend/Desktop"
+
+onlyBuiltDependencies:
+  - "@tauri-apps/cli"
+  - "esbuild"

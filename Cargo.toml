@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = [
+    "Server/Backend",
+    "Server/Backend/Capture",
+    "Server/Backend/HttpProxy",
+    "Server/Backend/Location",
+    "Server/Backend/PluginHost",
+    "Server/Backend/ProcessCapture",
+    "Server/Backend/Socks5",
+    "Server/Backend/Transport",
+    "Server/Cli",
+    "Server/Mcp",
+    "Server/Frontend/Desktop/src-tauri",
+]
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = "symbols"

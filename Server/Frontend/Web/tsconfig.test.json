@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "#tests/*": ["tests/support/*"]
+    }
+  },
+  "include": ["tests", "src/viteEnv.d.ts"]
+}

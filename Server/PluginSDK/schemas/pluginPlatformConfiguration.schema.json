@@ -1,0 +1,253 @@
+{
+  "$defs": {
+    "ExtensionLimits": {
+      "additionalProperties": false,
+      "description": "描述插件作者希望展示的运行参数；宿主仅持久化和诊断，不据此限制可信 Mod。",
+      "properties": {
+        "maxOutputBytes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxPendingEvents": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxStorageBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeoutMs": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timeoutMs",
+        "maxPendingEvents",
+        "maxOutputBytes",
+        "maxStorageBytes"
+      ],
+      "type": "object"
+    },
+    "ExtensionMatch": {
+      "additionalProperties": false,
+      "description": "描述插件订阅的连接、协议和事务范围；空字段表示该维度不限制。",
+      "properties": {
+        "cidrs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "directions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entries": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hosts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "methods": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mimeTypes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ports": {
+          "default": [],
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "processNames": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "processPaths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "protocols": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schemes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "statusCodes": {
+          "default": [],
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "transports": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "FailurePolicy": {
+      "description": "描述运行时失败对当前阶段的处理方式；插件作者提供默认值，用户可以按实例覆盖。",
+      "enum": [
+        "failClosed",
+        "failOpen"
+      ],
+      "type": "string"
+    },
+    "PluginUserConfiguration": {
+      "additionalProperties": false,
+      "description": "保存一个插件跨版本保留的用户意图；秘密仅保存宿主秘密库引用，不保存明文。",
+      "properties": {
+        "activeVersion": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "automaticRestart": {
+          "default": true,
+          "type": "boolean"
+        },
+        "configuration": {
+          "default": null
+        },
+        "configurationSchemaVersion": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "failurePolicy": {
+          "$ref": "#/$defs/FailurePolicy",
+          "default": "failClosed"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtensionLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "moduleOrder": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "secretReferences": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "subscriptionOverrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ExtensionMatch"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "保存完整插件平台配置文件；Schema 版本用于未来执行一次性、可回滚的数据迁移。",
+  "properties": {
+    "plugins": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PluginUserConfiguration"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "schemaVersion": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion"
+  ],
+  "title": "PluginPlatformConfiguration",
+  "type": "object"
+}

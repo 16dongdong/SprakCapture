@@ -1,0 +1,20 @@
+{
+  "name": "proxy-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "backend:check": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand check -PackageFilter proxy-backend",
+    "backend:test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand test -PackageFilter proxy-backend,socks5-core",
+    "web:dev": "pnpm --dir Server/Frontend/Web dev",
+    "web:build": "pnpm --dir Server/Frontend/Web build",
+    "web:test": "pnpm --dir Server/Frontend/Web test",
+    "i18n:check": "node Server/Frontend/Web/scripts/checkI18n.mjs",
+    "desktop:dev": "pnpm --dir Server/Frontend/Desktop dev",
+    "desktop:check": "pnpm --dir Server/Frontend/Desktop check",
+    "desktop:build": "pnpm --dir Server/Frontend/Desktop build",
+    "workspace:verify-clean": "node scripts/verifyWorkspaceClean.mjs",
+    "check": "cargo fmt --all --check && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand clippy -Workspace -AllTargets -AllFeatures -DenyWarnings && pnpm i18n:check && pnpm web:build && pnpm desktop:check",
+    "test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand test -Workspace && pnpm web:test && pnpm --dir Server/Frontend/Desktop test:paths && pnpm workspace:verify-clean"
+  }
+}

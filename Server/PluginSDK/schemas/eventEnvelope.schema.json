@@ -1,0 +1,249 @@
+{
+  "$defs": {
+    "InterceptionMode": {
+      "description": "标识事件对应的数据面是否允许插件改变线上内容。",
+      "enum": [
+        "intercept",
+        "observeOnly"
+      ],
+      "type": "string"
+    },
+    "Stage": {
+      "description": "标识宿主发布给插件的稳定处理阶段；枚举值同时作为 RPC、WIT 和控制 API 的线名。",
+      "enum": [
+        "serviceStarting",
+        "serviceStarted",
+        "configurationChanged",
+        "serviceStopping",
+        "connectionAccepted",
+        "socks5Authentication",
+        "protocolClassified",
+        "targetResolving",
+        "beforeConnect",
+        "connected",
+        "connectionClosing",
+        "clientHelloObserved",
+        "certificateSelecting",
+        "tlsEstablished",
+        "tlsFailed",
+        "requestHeaders",
+        "requestBodyChunk",
+        "requestComplete",
+        "beforeUpstream",
+        "responseHeaders",
+        "responseBodyChunk",
+        "responseComplete",
+        "webSocketOpening",
+        "webSocketFrame",
+        "webSocketClosing",
+        "tcpChunk",
+        "udpDatagram",
+        "dnsMessage",
+        "beforeRecord",
+        "transactionUpdated",
+        "transactionCompleted",
+        "recordingCleared",
+        "inspectorDataRequested",
+        "commandInvoked",
+        "contextActionInvoked"
+      ],
+      "type": "string"
+    },
+    "StageContext": {
+      "additionalProperties": false,
+      "description": "保存每个阶段都可读取的稳定上下文；不适用字段使用 `None`，不以空字符串伪造身份。",
+      "properties": {
+        "address": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "direction": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entry": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "interceptionMode": {
+          "$ref": "#/$defs/InterceptionMode"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "method": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mimeType": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "default": null,
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processId": {
+          "default": null,
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processName": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processPath": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocol": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scheme": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "statusCode": {
+          "default": null,
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "transport": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "interceptionMode"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "定义所有运行时共享的阶段事件信封；代际由宿主保证生命周期，截止时间仅供插件参考。",
+  "properties": {
+    "apiVersion": {
+      "type": "string"
+    },
+    "connectionId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "context": {
+      "$ref": "#/$defs/StageContext"
+    },
+    "deadlineUnixMs": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "eventId": {
+      "type": "string"
+    },
+    "payload": true,
+    "pluginInstanceId": {
+      "type": "string"
+    },
+    "recordingGeneration": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "serviceGeneration": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stage": {
+      "$ref": "#/$defs/Stage"
+    },
+    "transactionId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "apiVersion",
+    "eventId",
+    "stage",
+    "serviceGeneration",
+    "recordingGeneration",
+    "pluginInstanceId",
+    "deadlineUnixMs",
+    "context",
+    "payload"
+  ],
+  "title": "EventEnvelope",
+  "type": "object"
+}

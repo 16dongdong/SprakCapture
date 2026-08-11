@@ -1,0 +1,1919 @@
+/*
+ * Radix Themes 工作台桥接层。
+ *
+ * 视觉控件、菜单、焦点环和圆角由 @radix-ui/themes 提供；本文件只保留宿主网格、
+ * macOS 窗口栏结构以及不影响布局的过渡，避免将第三方组件的视觉规则重新手写一遍。
+ */
+.radix-themes {
+  width: 100%;
+  height: 100%;
+  color: var(--gray-12);
+  background:
+    radial-gradient(
+      circle at 12% -20%,
+      rgb(255 255 255 / 86%),
+      transparent 34%
+    ),
+    linear-gradient(145deg, var(--gray-2), var(--gray-3));
+}
+
+.applicationWindow {
+  grid-template-rows: 54px minmax(0, 1fr) 26px;
+  background: color-mix(in srgb, var(--gray-1) 82%, transparent);
+}
+
+.routeContent {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--gray-1) 74%, transparent);
+}
+
+/*
+ * 路由轨道恒定，入场动画只在切页期间更新合成层属性。动画结束必须释放 transform
+ * 包含块，否则后代的 fixed 对话框会被限制在内容区，窄窗口下无法按整个视口居中。
+ */
+.routeTransition {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  animation: radixRouteEnter var(--motion-standard) var(--motion-spring);
+}
+
+@keyframes radixRouteEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.997);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.topToolbar {
+  display: grid;
+  grid-template-rows: 54px;
+  height: 54px;
+  padding: 0;
+  gap: 0;
+  background: color-mix(in srgb, var(--gray-2) 78%, transparent);
+  border-bottom: 1px solid var(--gray-a5);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+
+.mainToolbarRow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 54px;
+  padding: 0 14px;
+  gap: 12px;
+}
+
+.mainNavigation {
+  align-self: center;
+  height: 34px;
+  padding: 3px;
+  gap: 2px;
+  background: var(--gray-a4);
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-3);
+}
+
+.toolbarNavItem {
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: calc(var(--radius-3) - 2px);
+  transition-property: color, background-color, box-shadow, transform;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-spring);
+}
+
+.toolbarNavItem > span:not(.toolbarBitmapIcon) {
+  display: none;
+}
+
+.toolbarNavItem:active {
+  transform: scale(0.97);
+}
+
+.toolbarNavItem.isActive {
+  color: var(--gray-12);
+  background: var(--color-panel-solid);
+  box-shadow: var(--shadow-1);
+}
+
+.toolbarNavItem.isActive::after {
+  display: none;
+}
+
+.toolbarActions {
+  --toolbar-action-gap: 4px;
+
+  height: 34px;
+  margin-left: 0;
+  padding-left: 12px;
+  gap: var(--toolbar-action-gap);
+  border-left: 1px solid var(--gray-a5);
+}
+
+/*
+ * Radix ghost 按钮默认用负外边距抵消视觉留白；放入紧凑排序容器后会让相邻命中盒相交。
+ * 工具栏因此统一使用 28px 实体盒、零外边距和 4px 布局间隙，显示范围即点击范围。
+ */
+.toolbarSortableItem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  cursor: default;
+  touch-action: auto;
+  will-change: transform;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.toolbarSortableItem.isReorderMode {
+  cursor: grab;
+  touch-action: none;
+}
+
+.toolbarSortableItem.isReorderMode:active {
+  cursor: grabbing;
+}
+
+.toolbarSortableItem.isDragging {
+  /* 拖动实体跟随横向指针，同时让 elementFromPoint 命中下层放置目标而不是拖动项自身。 */
+  z-index: 4;
+  opacity: 0.96;
+  filter: drop-shadow(0 5px 8px rgb(31 41 55 / 24%));
+  pointer-events: none;
+  transform: translate3d(var(--toolbar-drag-offset-x, 0), -2px, 0) scale(1.06);
+  transition:
+    opacity 80ms ease,
+    transform 120ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+/* 拖动项跨过槽位中心时，相邻控件先平移占据旧槽位，松手后的 DOM 排序不会产生二次跳动。 */
+.toolbarSortableItem.isShiftedLeft {
+  transform: translate3d(calc(-100% - var(--toolbar-action-gap)), 0, 0);
+}
+
+.toolbarSortableItem.isShiftedRight {
+  transform: translate3d(calc(100% + var(--toolbar-action-gap)), 0, 0);
+}
+
+/* 松手换序时新布局已经等于上一帧视觉终点，禁用一帧过渡可避免 transform 在新槽位重复播放。 */
+.toolbarActions.isSettling .toolbarSortableItem {
+  transition: none;
+}
+
+.toolbarReorderToggle[aria-pressed="true"] {
+  box-shadow:
+    inset 0 0 0 1px var(--accent-8),
+    0 2px 8px var(--accent-a4);
+}
+
+.toolbarActions .rt-IconButton,
+.toolbarActions .recordingToggle {
+  box-sizing: border-box;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin: 0;
+  padding: 5px;
+}
+
+.toolbarActions .toolMenuHost .rt-Button {
+  box-sizing: border-box;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin: 0;
+  padding: 5px;
+}
+
+.toolbarActions .recordingToggle {
+  display: grid;
+  padding: 0;
+  place-items: center;
+  contain: layout paint;
+}
+
+/* 录制写请求期间保留按钮的完整盒模型和视觉层，避免 disabled 滤镜切换触发工具栏闪烁。 */
+.toolbarActions .recordingToggle[aria-busy="true"] {
+  pointer-events: none;
+}
+.toolbarActions .recordingToggle .stableLabel {
+  display: none;
+}
+.toolbarActions .recordingToggle .recordingDot {
+  width: 12px;
+  height: 12px;
+  box-shadow: none;
+}
+.toolbarActions .recordingToggle.isRecording .recordingDot {
+  background: var(--red-9);
+  box-shadow: 0 0 0 3px var(--red-a4);
+}
+
+.toolMenuHost {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  align-self: center;
+}
+[data-radix-popper-content-wrapper] {
+  z-index: 30 !important;
+}
+
+.connectionStatusBar {
+  min-height: 26px;
+  padding: 0 14px;
+  gap: 14px;
+  color: var(--gray-11);
+  background: color-mix(in srgb, var(--gray-2) 80%, transparent);
+  border-top: 1px solid var(--gray-a5);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+.connectionStatusBar > span + span {
+  padding-left: 14px;
+  border-left: 1px solid var(--gray-a5);
+}
+
+.connectionStatusBar .statusBarService {
+  max-width: min(42vw, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Radix 弹层与现有业务对话框共享同一层级，仅做容器过渡。 */
+.dialogBackdrop {
+  background: rgb(28 30 35 / 26%);
+  backdrop-filter: blur(12px) saturate(120%);
+  animation: radixBackdropEnter var(--motion-fast) ease-out both;
+}
+
+.dialogBackdrop
+  :is(
+    .toolSettingsDialog,
+    .breakpointHitDialog,
+    .sslSettingsDialog,
+    .protocolSettingsDialog,
+    .confirmDialog,
+    .repeatDialog,
+    .listenerSettingsDialog
+  ) {
+  animation: radixDialogEnter var(--motion-standard) var(--motion-spring) both;
+  will-change: opacity, transform;
+}
+
+@keyframes radixBackdropEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * 独立工具窗口不再借主窗口遮罩承载内容。固定网格将标题、滚动正文和操作区隔离，
+ * 异步加载、校验结果或编辑模式切换只更新正文，不触发窗口外框重新测量。
+ */
+/*
+ * 二级规则编辑器通过 portal 直接挂到 body，不位于 Radix Theme 容器内；缺失 accent 色阶会
+ * 让 checked 背景声明失效，出现状态已经切换但复选框仍像未勾选。把完整交互色阶映射到
+ * 项目蓝色令牌后，主窗口、独立窗口和 portal 对话框都保持相同的可见状态语义。
+ */
+body,
+.windowSurface,
+.independentWindowSurface {
+  --accent-8: var(--blue-8);
+  --accent-9: var(--blue-9);
+  --accent-10: var(--blue-10);
+  --accent-11: var(--blue-11);
+  --accent-a3: var(--blue-a3);
+  --accent-a4: var(--blue-a4);
+  --accent-a5: var(--blue-a5);
+  --accent-a6: var(--blue-a6);
+  --accent-a7: var(--blue-a7);
+}
+
+.windowSurface,
+.independentWindowSurface {
+  display: grid;
+  width: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  color: var(--gray-12);
+  background:
+    radial-gradient(
+      circle at 50% -24%,
+      rgb(255 255 255 / 82%),
+      transparent 42%
+    ),
+    color-mix(in srgb, var(--gray-1) 92%, transparent);
+  animation: windowSurfaceEnter var(--motion-emphasized) var(--motion-spring)
+    both;
+  contain: paint;
+}
+
+.windowSurfaceContent,
+.independentWindowContent {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* 主窗口需要 420px 最小高度，独立业务窗口按各自 contract 定尺寸，不能继承该下限制造页面滚动。 */
+html:has(.independentWindowSurface),
+body:has(.independentWindowSurface),
+#root:has(.independentWindowSurface) {
+  min-height: 0;
+}
+
+@keyframes windowSurfaceEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes radixDialogEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.transactionTreeItem,
+.transactionHostHeader,
+.transactionPathFolderHeader,
+.metricCell,
+.pluginListItem,
+.settingsNavigation a {
+  transition-property:
+    color, background-color, border-color, box-shadow, transform;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-spring);
+}
+
+.transactionTreeItem.isSelected {
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+.metricCell:hover {
+  transform: translateY(-1px);
+}
+
+/* 请求与响应消息面板使用比例栅格；内联轨道由可访问性分割条更新，窗口缩放仍由 CSS Grid 重新分配高度。 */
+.transactionContentsView {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--gray-a3);
+}
+
+.messagePane {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 25px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-panel-solid);
+}
+
+.messagePane > header {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--gray-a5);
+}
+
+.messagePane > header strong {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.messagePane > header span {
+  min-width: 0;
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messagePane--request > header {
+  background: var(--red-a3);
+}
+.messagePane--response > header {
+  background: var(--green-a3);
+}
+
+/* 分割条只承载高度调整：禁用浏览器拖动选择，使用指针捕获保证滑出正文后仍连续更新。 */
+.contentsDivider {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: var(--contents-divider-height, 7px);
+  place-items: center;
+  touch-action: none;
+  cursor: row-resize;
+  background: var(--gray-a4);
+  border-top: 1px solid var(--gray-a5);
+  border-bottom: 1px solid var(--gray-a5);
+  user-select: none;
+}
+
+.contentsDivider::before,
+.contentsDivider::after,
+.contentsDividerGrip {
+  width: 34px;
+  height: 1px;
+  content: "";
+  background: var(--gray-a8);
+}
+
+.contentsDivider::before {
+  position: absolute;
+  transform: translateY(-2px);
+}
+
+.contentsDivider::after {
+  position: absolute;
+  transform: translateY(2px);
+}
+
+.contentsDivider:hover,
+.contentsDivider:focus-visible,
+.transactionContentsView[data-resizing="true"] .contentsDivider {
+  background: var(--accent-a5);
+  outline: 0;
+}
+
+.contentsDivider:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent-9);
+}
+
+.transactionContentsView[data-resizing="true"] {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/*
+ * HTTP/HTTPS 结构树按“来源 → URL 目录 → 资源”展示；屏幕只保留稳定路径，完整事务信息由叶节点提示和检查器提供。
+ */
+.transactionNavigatorPane .transactionTree {
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 0;
+}
+
+.transactionNavigatorPane .transactionHostGroup {
+  position: relative;
+  min-width: 0;
+  border-bottom-color: var(--gray-a4);
+}
+
+.transactionNavigatorPane .transactionHostHeader,
+.transactionNavigatorPane .transactionPathFolderHeader {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  grid-template-columns: 12px 13px 7px minmax(0, 1fr);
+  align-items: center;
+  padding: 0 6px 0 5px;
+  gap: 4px;
+  user-select: none;
+}
+
+.transactionNavigatorPane .transactionHostHeader > *,
+.transactionNavigatorPane .streamTreeRoot > *,
+.transactionNavigatorPane .transactionSequenceItem > * {
+  position: relative;
+  z-index: 1;
+}
+
+.transactionNavigatorPane .transactionHostHeader {
+  grid-template-columns: 12px 13px minmax(0, 1fr);
+  color: var(--gray-12);
+  background: var(--gray-a2);
+  border-bottom: 1px solid var(--gray-a3);
+  font-weight: 600;
+}
+
+.transactionNavigatorPane .transactionPathFolderHeader {
+  grid-template-columns: 12px 13px minmax(0, 1fr);
+  color: var(--gray-11);
+  background: var(--gray-a1);
+}
+
+.transactionNavigatorPane .transactionHostHeader:hover,
+.transactionNavigatorPane .transactionPathFolderHeader:hover {
+  background: var(--accent-a3);
+}
+
+.transactionNavigatorPane .transactionHostChildren,
+.transactionNavigatorPane .transactionPathFolderChildren {
+  position: relative;
+  min-width: 0;
+  margin-left: 10px;
+  border-left: 1px dotted var(--gray-a6);
+}
+
+.transactionNavigatorPane .transactionTreeOrigin {
+  color: var(--accent-9);
+}
+.transactionNavigatorPane .transactionTreeFolder {
+  color: var(--blue-9);
+}
+.transactionNavigatorPane .transactionStatusDot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: var(--gray-8);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--gray-a4);
+}
+.transactionNavigatorPane .transactionStatusDot--success {
+  background: var(--green-9);
+}
+.transactionNavigatorPane .transactionStatusDot--warning {
+  background: var(--amber-9);
+}
+.transactionNavigatorPane .transactionStatusDot--danger {
+  background: var(--red-9);
+}
+.transactionNavigatorPane .transactionStatusDot--neutral {
+  background: var(--gray-8);
+}
+.transactionNavigatorPane .transactionResourceIcon {
+  color: var(--gray-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--image {
+  color: var(--green-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--json {
+  color: var(--amber-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--apk {
+  color: var(--green-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--html,
+.transactionNavigatorPane .transactionResourceIcon--script {
+  color: var(--orange-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--stylesheet {
+  color: var(--blue-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--archive {
+  color: var(--purple-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--binary {
+  color: var(--gray-11);
+}
+.transactionNavigatorPane .transactionResourceIcon--font {
+  color: var(--indigo-10);
+}
+.transactionNavigatorPane .transactionResourceIcon--audio,
+.transactionNavigatorPane .transactionResourceIcon--video {
+  color: var(--pink-10);
+}
+.transactionNavigatorPane .treeEndpoint,
+.transactionNavigatorPane .transactionTreeTarget {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .treeCount {
+  min-width: 18px;
+  padding: 0 4px;
+  color: var(--gray-11);
+  background: var(--gray-a4);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.transactionNavigatorPane .transactionTreeItem {
+  /* 叶节点固定为资源图标、事务状态和完整文本三列；漏掉状态列会把深层资源名挤到隐式窄列，只剩首字母。 */
+  grid-template-columns: 13px 7px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 22px;
+  padding-top: 0;
+  padding-right: 6px;
+  padding-bottom: 0;
+  gap: 4px;
+}
+.transactionNavigatorPane .sequenceEndpointCell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .transactionDuration {
+  min-width: 0;
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 原始流树按“连接 → 方向 → 单包”显示；包行仅保留方向和字节数，完整字节内容由右侧检查器按需读取。 */
+.transactionNavigatorPane .streamTree,
+.transactionNavigatorPane .streamDirectionGroup {
+  min-width: 0;
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+/* 同一端点的连接共享来源根；子连接各自保留终态、方向和分块，避免重复 URL 占满窄栏。 */
+.transactionNavigatorPane .streamOriginChildren {
+  position: relative;
+  padding-left: 18px;
+}
+
+.transactionNavigatorPane .streamOriginChildren::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 13px;
+  border-left: 1px dotted var(--gray-a7);
+  content: "";
+  pointer-events: none;
+}
+
+.transactionNavigatorPane .streamConnectionTree {
+  min-width: 0;
+  border-top: 1px solid var(--gray-a3);
+}
+
+.transactionNavigatorPane .streamTransactionHeader {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.transactionNavigatorPane .streamTransactionHeader > .treeToggle {
+  align-self: center;
+  justify-self: center;
+}
+
+.transactionNavigatorPane .streamTreeHeader {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.treeToggle {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  padding: 0;
+  color: var(--gray-11);
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-a7);
+  border-radius: 2px;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.treeToggle:hover,
+.treeToggle:focus-visible {
+  color: var(--accent-11);
+  border-color: var(--accent-8);
+  outline: 0;
+}
+
+.transactionNavigatorPane .streamTreeHeader > .treeToggle {
+  align-self: center;
+  justify-self: center;
+}
+
+/* 连接地址是定位原始流的稳定标识，必须保留协议与端口；窄栏通过树容器横向滚动，禁止省略号丢失地址。 */
+.transactionNavigatorPane .streamTreeRoot {
+  position: relative;
+  display: grid;
+  grid-template-columns: 13px max-content;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
+  min-height: 24px;
+  padding: 0 6px 0 2px;
+  color: var(--gray-12);
+  background: var(--gray-a2);
+  border: 0;
+  border-left: 3px solid transparent;
+  gap: 4px;
+  text-align: left;
+}
+
+.transactionNavigatorPane .streamTreeRoot:hover {
+  background: var(--accent-a3);
+}
+
+.transactionNavigatorPane .streamTransportIcon {
+  color: var(--accent-9);
+}
+
+.transactionNavigatorPane .streamTreeRoot strong {
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+/* 来源 URL 仅负责目标分组；具体连接用客户端 IP:端口区分，终态只作用于该连接节点。 */
+.transactionNavigatorPane .streamTransactionStatusItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px 7px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 21px;
+  padding: 0 6px 0 2px;
+  color: var(--gray-11);
+  background: transparent;
+  border: 0;
+  gap: 4px;
+  text-align: left;
+}
+
+.transactionNavigatorPane .streamTransactionStatusItem > * {
+  position: relative;
+  z-index: 1;
+}
+
+.transactionNavigatorPane .streamTransactionStatusItem:hover,
+.transactionNavigatorPane .streamTransactionStatusItem.isSelected {
+  background: var(--accent-a3);
+}
+
+.transactionNavigatorPane .streamTransactionStatusItem.isSelected {
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+
+.transactionNavigatorPane .streamDirectionList {
+  position: relative;
+  padding-left: 9px;
+}
+
+.transactionNavigatorPane .streamDirectionList::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 13px;
+  border-left: 1px dotted var(--gray-a7);
+  content: "";
+  pointer-events: none;
+}
+
+.transactionNavigatorPane .streamDirectionHeader {
+  display: grid;
+  grid-template-columns: 14px 14px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 6px 0 8px;
+  color: var(--gray-11);
+  background: var(--gray-a1);
+  gap: 4px;
+}
+
+.transactionNavigatorPane .streamDirectionHeader svg {
+  color: var(--accent-9);
+}
+
+.transactionNavigatorPane .streamDirectionSelect {
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.transactionNavigatorPane .streamDirectionSelect.isSelected {
+  color: var(--accent-11);
+  font-weight: 700;
+}
+
+.transactionNavigatorPane .streamPacketItem {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 21px;
+  padding: 0 6px 0 34px;
+  color: var(--gray-12);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--gray-a3);
+  gap: 4px;
+  text-align: left;
+}
+
+.transactionNavigatorPane .streamPacketItem:hover,
+.transactionNavigatorPane .streamPacketItem.isSelected {
+  background: var(--accent-a3);
+}
+
+.transactionNavigatorPane .streamPacketItem.isSelected {
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+
+.transactionNavigatorPane .streamPacketItem > :last-child {
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* 单包行用方向文案与字节数形成稳定的两列读序，树枝只表达层级而不承担文本分隔。 */
+.transactionNavigatorPane .streamPacketItem > :nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .streamTreeBranch {
+  align-self: start;
+  width: 9px;
+  height: 12px;
+  border-bottom: 1px solid var(--gray-a6);
+  border-left: 1px solid var(--gray-a6);
+}
+
+/* 右键菜单沿用 Radix 的可访问交互，仅补齐图标对齐和高密度菜单间距。 */
+.transactionContextMenu [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.transactionContextMenu svg {
+  flex: 0 0 auto;
+  color: var(--gray-10);
+}
+
+.streamPacketInspector {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.streamPacketInspector > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.streamPacketInspector > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.streamPacketInspector > header span {
+  color: var(--gray-11);
+  font-size: 12px;
+}
+
+.streamDirectionSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 检查器正文会拉伸普通内容视图；方向概览保持内容高度，剩余空间留给后续详情而不是放大四个统计格。 */
+  flex: 0 0 auto;
+  margin: 14px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.streamDirectionSummary > div {
+  display: grid;
+  gap: 3px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border-right: 1px solid var(--gray-a4);
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.streamDirectionSummary dt {
+  color: var(--gray-11);
+  font-size: 11px;
+}
+
+.streamDirectionSummary dd {
+  margin: 0;
+  color: var(--gray-12);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.streamDirectionPacketSummary {
+  display: grid;
+  align-content: start;
+  flex: 0 0 auto;
+  margin: 14px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.streamDirectionPacketSummary > [role="row"] {
+  display: grid;
+  grid-template-columns:
+    minmax(62px, 0.55fr) minmax(86px, 0.8fr) minmax(82px, 0.8fr)
+    minmax(100px, 1fr);
+  align-items: center;
+  min-height: 30px;
+  border-bottom: 1px solid var(--gray-a3);
+}
+
+.streamDirectionPacketSummary > [role="row"]:last-child {
+  border-bottom: 0;
+}
+
+.streamDirectionPacketSummary > [role="row"] > span {
+  min-width: 0;
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streamDirectionPacketSummaryHeader {
+  color: var(--gray-11);
+  background: var(--gray-a3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.streamDirectionPacketSummary
+  > [role="row"]:not(.streamDirectionPacketSummaryHeader) {
+  color: var(--gray-12);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.streamDirectionChart {
+  display: grid;
+  align-content: start;
+  flex: 0 0 auto;
+  margin: 14px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.streamDirectionChart > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 11px;
+  background: var(--gray-a2);
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.streamDirectionChart > header strong {
+  font-size: 12px;
+}
+
+.streamDirectionChart > header span,
+.streamDirectionChartScale {
+  color: var(--gray-11);
+  font-size: 10px;
+}
+
+.streamDirectionChartScale {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 96px 3px 52px;
+}
+
+.streamDirectionChartRows {
+  display: grid;
+  padding: 0 10px 9px;
+  gap: 5px;
+}
+
+.streamDirectionChartRows > div {
+  display: grid;
+  grid-template-columns: 34px minmax(80px, 1fr) 92px;
+  align-items: center;
+  min-height: 24px;
+  gap: 8px;
+}
+
+.streamDirectionChartTrack {
+  position: relative;
+  height: 6px;
+  background: var(--gray-a3);
+  border-radius: 999px;
+}
+
+.streamDirectionChartTrack i {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-9);
+  border: 2px solid var(--color-panel-solid);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--accent-a7);
+  transform: translate(-50%, -50%);
+}
+
+.streamDirectionChartRows output {
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.timingChartView {
+  display: grid;
+  align-content: start;
+  flex: 0 0 auto;
+  margin: 14px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.timingChartView > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  background: var(--gray-a2);
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.timingChartView > header strong {
+  font-size: 12px;
+}
+
+.timingChartView > header span {
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.timingWaterfall {
+  display: grid;
+  padding: 10px 12px 12px;
+  gap: 7px;
+}
+
+.timingWaterfallRow {
+  display: grid;
+  grid-template-columns: 44px minmax(100px, 1fr) 72px;
+  align-items: center;
+  min-height: 24px;
+  gap: 9px;
+}
+
+.timingWaterfallRow > span {
+  color: var(--gray-11);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.timingWaterfallTrack {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  background: var(--gray-a3);
+  border-radius: 3px;
+}
+
+.timingWaterfallBar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  background: var(--accent-9);
+  border-radius: 2px;
+}
+
+.timingWaterfallBar--1 {
+  background: var(--blue-9);
+}
+.timingWaterfallBar--2 {
+  background: var(--cyan-9);
+}
+.timingWaterfallBar--3 {
+  background: var(--green-9);
+}
+.timingWaterfallBar--4 {
+  background: var(--amber-9);
+}
+.timingWaterfallBar--5 {
+  background: var(--orange-9);
+}
+
+.timingWaterfallRow output {
+  color: var(--gray-11);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .transactionSequenceTable {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  grid-template-rows: 26px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.transactionNavigatorPane .transactionSequenceTableHeader,
+.transactionNavigatorPane .transactionSequenceItem {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  align-items: center;
+  min-width: 0;
+}
+
+.transactionNavigatorPane .transactionSequenceTableHeader {
+  color: var(--gray-11);
+  background: var(--gray-a3);
+  border-bottom: 1px solid var(--gray-a5);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.transactionNavigatorPane .transactionSequenceTableHeader > span {
+  min-width: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .transactionSequenceTableBody {
+  min-height: 0;
+  overflow: auto;
+}
+
+.transactionNavigatorPane .transactionSequenceTableRow {
+  min-width: 0;
+}
+
+.transactionNavigatorPane .transactionSequenceItem {
+  position: relative;
+  width: 100%;
+  min-height: 25px;
+  padding: 0;
+  color: var(--gray-12);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--gray-a3);
+}
+
+.transactionNavigatorPane .transactionSequenceItem:hover {
+  background: var(--accent-a3);
+}
+
+.transactionNavigatorPane .transactionSequenceItem > span {
+  min-width: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transactionNavigatorPane .transactionSequenceItem.isSelected {
+  background: var(--accent-a4);
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+
+/*
+ * 高频数据区的指针反馈不铺设大块蓝底，避免鼠标掠过时产生闪烁感；层级通过细描边
+ * 表达。选中态仍保留左侧强调线，键盘与鼠标语义不会混淆。
+ */
+.transactionNavigatorPane .transactionHostHeader:hover {
+  background: var(--gray-a2);
+  box-shadow: inset 0 0 0 1px var(--gray-a5);
+}
+
+.transactionNavigatorPane .transactionPathFolderHeader:hover {
+  background: var(--gray-a1);
+  box-shadow: inset 0 0 0 1px var(--gray-a5);
+}
+
+.transactionNavigatorPane .streamTreeRoot:hover,
+.transactionNavigatorPane .streamPacketItem:hover,
+.transactionNavigatorPane .transactionSequenceItem:hover,
+.transactionTreeItem:hover:not(.isSelected) {
+  background: transparent;
+  box-shadow: inset 2px 0 var(--gray-a7);
+}
+
+.transactionNavigatorPane .streamPacketItem.isSelected,
+.transactionNavigatorPane .transactionSequenceItem.isSelected,
+.transactionTreeItem.isSelected {
+  background: color-mix(in srgb, var(--accent-a3) 72%, transparent);
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+
+/* 工具内容变化只在固定正文轨道内滚动，避免标题和底部按钮随异步状态上下跳动。 */
+.confirmDialog {
+  min-height: min(210px, calc(100dvh - 32px));
+}
+
+.toolSettingsDialog:not(.toolSettingsDialog--visual) {
+  height: min(440px, calc(100dvh - 40px));
+}
+
+:is(
+    .sslSettingsDialog,
+    .toolSettingsDialog,
+    .breakpointHitDialog,
+    .listenerSettingsDialog,
+    .protocolSettingsDialog,
+    .repeatDialog
+  )
+  > :is(
+    .sslDialogBody,
+    .toolDialogBody,
+    .protocolSettingsBody,
+    form,
+    .repeatJobProgress
+  ) {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/*
+ * 菜单、提示和状态变化只使用 opacity/transform 等合成属性，连续抓包时不会让主线程
+ * 参与逐帧布局。交互反馈保持轻量，失败提示仍由 role=alert 即时交给辅助技术。
+ */
+:is(
+  .toolMenu,
+  [data-radix-menu-content],
+  [data-radix-popper-content-wrapper] > [role="menu"]
+) {
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    top right
+  );
+  animation: popoverSurfaceEnter var(--motion-fast) var(--motion-spring) both;
+}
+
+:is(
+  .viewerNotice,
+  .toolValidationMessage,
+  .settingsRestartHint,
+  .repeatDialogState,
+  .pluginErrorCode
+) {
+  animation: feedbackMessageEnter var(--motion-standard) var(--motion-spring)
+    both;
+}
+
+:is(button, [role="button"], a, input, select, textarea):focus-visible {
+  outline: 1px solid var(--accent-8);
+  outline-offset: 1px;
+  box-shadow: var(--focus-ring);
+}
+
+:is(.rt-Button, .rt-IconButton, .iconButton, .primaryButton):not(:disabled) {
+  box-shadow: var(--control-shadow);
+}
+
+:is(.rt-Button, .rt-IconButton, .iconButton, .primaryButton):hover:not(
+    :disabled
+  ) {
+  box-shadow: var(--control-shadow-hover);
+}
+
+:is(.rt-Button, .rt-IconButton, .iconButton, .primaryButton):active:not(
+    :disabled
+  ) {
+  box-shadow: 0 1px 1px rgb(26 31 40 / 8%);
+  transform: scale(0.965);
+}
+
+@keyframes popoverSurfaceEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes feedbackMessageEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -3px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.transactionNavigatorPane .sequenceStatusCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.transactionNavigatorPane .transactionSequenceItem .transactionDuration {
+  padding-right: 8px;
+}
+
+.floatingPanel {
+  background: color-mix(in srgb, var(--gray-1) 88%, transparent);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+
+@media (max-width: 900px) {
+  .toolbarNavItem {
+    min-width: 42px;
+  }
+  .toolbarNavItem span:not(.toolbarBitmapIcon) {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .applicationWindow {
+    grid-template-rows: 50px minmax(0, 1fr) 26px;
+  }
+  .topToolbar {
+    grid-template-rows: 50px;
+    height: 50px;
+  }
+  .mainToolbarRow {
+    padding-inline: 10px;
+  }
+  .toolbarActions {
+    --toolbar-action-gap: 2px;
+
+    margin-left: auto;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .toolbarActions > :nth-child(n + 5) {
+    display: none;
+  }
+}
+
+/*
+ * 独立窗口使用原生窗口本身承担遮罩边界，业务面板必须占满稳定网格而不是再次悬浮一张卡片。
+ * 标题、正文和底栏保持固定轨道；异步加载、规则增删和校验结果只改变中间滚动区，避免窗口抖动。
+ */
+.independentWindowSurface .independentWindowContent {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-area: 1 / 1 / -1 / -1;
+  overflow: hidden;
+}
+
+.independentWindowSurface .dialogBackdrop {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.independentWindowSurface
+  .dialogBackdrop
+  > :is(
+    .sslSettingsDialog,
+    .toolSettingsDialog,
+    .breakpointHitDialog,
+    .listenerSettingsDialog,
+    .protocolSettingsDialog,
+    .repeatDialog,
+    .confirmDialog
+  ) {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--gray-1) 96%, transparent);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* 标题与底栏使用同一毛玻璃材质和固定高度，正文单独滚动。 */
+.independentWindowSurface
+  :is(
+    .sslDialogHeader,
+    .toolDialogHeader,
+    .confirmDialogHeader,
+    .repeatDialog > header,
+    .settingsPage > .pageHeader
+  ) {
+  min-height: 58px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--gray-2) 84%, transparent);
+  border-bottom: 1px solid var(--gray-a5);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+
+.independentWindowSurface
+  :is(
+    .sslDialogFooter,
+    .toolDialogFooter,
+    .confirmDialogActions,
+    .settingsActions
+  ) {
+  min-height: 54px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--gray-2) 86%, transparent);
+  border-top: 1px solid var(--gray-a5);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.independentWindowSurface
+  :is(
+    .sslDialogBody,
+    .toolDialogBody,
+    .protocolSettingsBody,
+    .breakpointDialogBody,
+    .listenerRuleList,
+    .repeatDialog > form,
+    .repeatJobProgress,
+    .settingsContent
+  ) {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* ConfirmDialog 也遵循三轨结构，长错误信息只在正文区滚动。 */
+.confirmDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 0;
+}
+
+.confirmDialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.confirmDialogHeader h2,
+.independentWindowSurface .confirmDialogHeader h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.confirmDialogBody {
+  min-width: 0;
+  min-height: 88px;
+  padding: 16px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.confirmDialogBody p {
+  margin: 0;
+  color: var(--gray-11);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.confirmDialogActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  gap: 8px;
+}
+
+.dialogActivityIndicator {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  opacity: 0;
+  background: var(--accent-9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--accent-a3);
+}
+
+.confirmDialog[data-state="busy"] .dialogActivityIndicator {
+  opacity: 1;
+  animation: dialogActivityPulse 1.1s ease-in-out infinite;
+}
+
+/* 设置页在独立窗口内固定标题轨道，导航、内容和底栏由表单网格分配剩余高度。 */
+.independentWindowSurface .independentWindowShell--settings,
+.independentWindowSurface .settingsPage {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.independentWindowSurface .settingsPage {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+  padding: 0;
+}
+
+.independentWindowSurface .settingsPage > .pageHeader {
+  width: 100%;
+  margin: 0;
+}
+
+.independentWindowSurface .settingsWorkspace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* 成功与错误结果页沿用完整窗口三轨，状态切换不会改变窗口几何尺寸。 */
+.independentWindowFeedback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.independentWindowFeedbackHeader {
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--gray-2) 84%, transparent);
+  border-bottom: 1px solid var(--gray-a5);
+}
+
+.independentWindowFeedbackHeader h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.independentWindowFeedbackBody {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px 18px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 10px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.independentWindowFeedbackBody p {
+  margin: 0;
+  color: var(--gray-11);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.feedbackStateDot {
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  background: var(--green-9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--green-a3);
+}
+
+.feedbackStateDot.is-alert {
+  background: var(--red-9);
+  box-shadow: 0 0 0 4px var(--red-a3);
+}
+
+.independentWindowFeedbackActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 54px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--gray-2) 86%, transparent);
+  border-top: 1px solid var(--gray-a5);
+}
+
+/* Repeat 模式切换只更新正文；标题和底部动作保持吸附，长字段在自己的轨道内滚动。 */
+.independentWindowSurface .repeatDialog {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.independentWindowSurface .repeatDialog > form,
+.independentWindowSurface .repeatJobProgress {
+  padding: 16px;
+}
+
+.independentWindowSurface .repeatDialog footer {
+  position: sticky;
+  z-index: 2;
+  bottom: -16px;
+  min-height: 54px;
+  margin: 8px -16px -16px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--gray-2) 94%, transparent);
+  border-top: 1px solid var(--gray-a5);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+/*
+ * macOS 风格表单反馈：原生输入保留键盘和辅助技术语义，只统一可见状态。
+ * 复选行禁止整行 label 代理点击，命中区域严格限制为可见控件盒。
+ */
+.independentWindowSurface :is(input, select, textarea) {
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.independentWindowSurface
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  color: var(--gray-12);
+  background: color-mix(in srgb, var(--gray-1) 94%, transparent);
+  border-color: var(--gray-a6);
+  border-radius: 7px;
+  box-shadow: inset 0 1px 1px rgb(28 32 40 / 5%);
+}
+
+.independentWindowSurface
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea
+  ):hover:not(:disabled) {
+  border-color: var(--gray-a8);
+  background: var(--gray-1);
+}
+
+.independentWindowSurface :is(input, select, textarea):focus-visible {
+  border-color: var(--accent-8);
+  box-shadow: 0 0 0 3px var(--accent-a3);
+}
+
+.independentWindowSurface :is(input, select, textarea):disabled {
+  opacity: 0.54;
+  cursor: not-allowed;
+}
+
+.independentWindowSurface :is(input[type="checkbox"], input[type="radio"]) {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  accent-color: var(--accent-9);
+  cursor: pointer;
+}
+
+.independentWindowSurface
+  :is(
+    .sslEnabledRow,
+    .toolEnabledRow,
+    .settingsCheckboxRow,
+    .confirmDialogOption
+  ) {
+  cursor: default;
+  pointer-events: none;
+}
+
+.independentWindowSurface
+  :is(
+    .sslEnabledRow,
+    .toolEnabledRow,
+    .settingsCheckboxRow,
+    .confirmDialogOption
+  )
+  input {
+  pointer-events: auto;
+}
+
+/* 主要启停项显示为紧凑开关；普通确认选项继续使用明确的复选框语义。 */
+.independentWindowSurface
+  :is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"] {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  min-width: 30px;
+  appearance: none;
+  background: var(--gray-a7);
+  border: 1px solid var(--gray-a7);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 3%);
+}
+
+.independentWindowSurface
+  :is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]::after {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(18 22 30 / 28%);
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+.independentWindowSurface
+  :is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:checked {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+}
+
+.independentWindowSurface
+  :is(.sslEnabledRow, .toolEnabledRow, .settingsCheckboxRow)
+  > input[type="checkbox"]:checked::after {
+  transform: translateX(12px);
+}
+
+.independentWindowSurface button {
+  min-height: 30px;
+  border-radius: 7px;
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.independentWindowSurface button:hover:not(:disabled) {
+  border-color: var(--gray-a8);
+  box-shadow: var(--control-shadow-hover);
+}
+
+.independentWindowSurface button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.independentWindowSurface :is(button, summary) {
+  touch-action: manipulation;
+}
+
+.independentWindowSurface details > summary {
+  border-radius: 7px;
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.independentWindowSurface details > summary:hover {
+  color: var(--gray-12);
+  background: var(--gray-a3);
+  box-shadow: inset 0 0 0 1px var(--gray-a5);
+}
+
+.independentWindowSurface details[open] > summary {
+  color: var(--accent-11);
+}
+
+.independentWindowSurface details[open] > :not(summary) {
+  animation: feedbackMessageEnter var(--motion-standard) var(--motion-spring)
+    both;
+}
+
+.independentWindowSurface button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.isWindowClosing .windowSurface,
+.isWindowClosing .independentWindowSurface {
+  pointer-events: none;
+  animation: windowSurfaceExit var(--motion-fast) ease-in both;
+}
+
+@keyframes dialogActivityPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes windowSurfaceExit {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0) scale(0.992);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .windowSurface,
+  .independentWindowSurface,
+  .dialogBackdrop,
+  .dialogBackdrop
+    :is(
+      .toolSettingsDialog,
+      .breakpointHitDialog,
+      .sslSettingsDialog,
+      .protocolSettingsDialog,
+      .confirmDialog,
+      .repeatDialog,
+      .listenerSettingsDialog
+    ) {
+    animation-duration: 1ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

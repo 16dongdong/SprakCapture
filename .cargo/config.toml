@@ -1,0 +1,4 @@
+[env]
+# WinDivert 的静态实现会导出同名 CRT 内存函数，发布优化后可能形成自递归。
+# 统一链接官方动态库，并让构建脚本把 DLL 与驱动部署到实际可执行文件目录。
+WINDIVERT_PATH = { value = "Server/Backend/ProcessCapture/vendor", relative = true }

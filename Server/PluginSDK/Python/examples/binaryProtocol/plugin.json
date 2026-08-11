@@ -1,0 +1,26 @@
+{
+  "manifestVersion": 2,
+  "id": "example.python.binary",
+  "name": "Python 二进制协议示例",
+  "description": "演示增量分包、明文修改与自动重封包",
+  "version": "1.0.0",
+  "publisher": "example",
+  "engines": { "host": ">=2.0.0 <3.0.0", "api": "2.x" },
+  "runtime": {
+    "kind": "sidecar",
+    "entry": "plugin.py",
+    "protocolVersion": "2.0",
+    "arguments": []
+  },
+  "modules": [{
+    "id": "transformer",
+    "kind": "streamTransformer",
+    "subscriptions": [{ "stage": "tcpChunk", "order": 0, "match": {} }],
+    "contributes": []
+  }],
+  "capabilities": [],
+  "dependencies": {},
+  "limits": { "timeoutMs": 0, "maxPendingEvents": 0, "maxOutputBytes": 0, "maxStorageBytes": 0 },
+  "failurePolicy": "failClosed",
+  "extensions": { "pythonSdk": { "protocol": "jsonl-v2" } }
+}

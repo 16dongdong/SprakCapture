@@ -1,0 +1,32 @@
+{
+  "manifestVersion": 2,
+  "id": "example.binary-transformer",
+  "name": "二进制协议转换示例",
+  "description": "演示 TCP 分包、解密、修改、重封包以及 UDP 报文修改。",
+  "version": "1.0.0",
+  "publisher": "example",
+  "engines": {
+    "host": ">=1.0.0",
+    "api": "2.x"
+  },
+  "runtime": {
+    "kind": "native",
+    "entry": "binaryTransformer.dll",
+    "protocolVersion": "2.0",
+    "arguments": []
+  },
+  "modules": [
+    {
+      "id": "transform",
+      "kind": "streamTransformer",
+      "subscriptions": [
+        { "stage": "tcpChunk", "order": 0, "match": {} },
+        { "stage": "udpDatagram", "order": 0, "match": {} },
+        { "stage": "connectionClosing", "order": 0, "match": {} }
+      ],
+      "contributes": []
+    }
+  ],
+  "capabilities": ["protocol.decode", "traffic.modify"],
+  "failurePolicy": "failClosed"
+}
