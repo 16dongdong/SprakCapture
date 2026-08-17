@@ -53,5 +53,10 @@
   "error.pluginOperationFailed": "Операция с плагином не выполнена.",
   "error.invalidProcessSelectionRequest": "The process selection request is invalid.",
   "error.processSelectionOperationFailed": "Failed to save or apply the process selection: {{detail}}",
-  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}"
+  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}",
+  "error.clientPackageBusy": "A client package build is already running.",
+  "error.clientPackageAuthenticationFailed": "Учетная запись или пароль SOCKS5 недействительны.",
+  "error.clientPackageServiceUnavailable": "Служба учетных записей или удаленных правил недоступна.",
+  "error.clientPackageOperationFailed": "The client package operation failed.",
+  "error.clientNodeUnavailable": "No local network address reachable by the Android device was found."
 }

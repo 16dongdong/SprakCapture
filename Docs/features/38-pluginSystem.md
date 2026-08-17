@@ -169,7 +169,9 @@ running → draining → uninstalling → removed
 - 实例、队列、耗时、错误、日志和存储。
 - 命令、协议解码器、正文查看器、媒体渲染器、导入导出器、工作区面板和开发模式。
 
-插件可使用声明式 UI、独立 WebView、独立窗口或进程内 Native 自定义界面；只有声明式贡献承诺跨版本兼容。
+当前稳定实现把插件 `configSchema` 视为插件声明式 UI：插件管理页只显示生命周期摘要和“打开插件窗口”按钮，每个插件的字段、秘密状态与保存动作都在按插件 ID 唯一复用的独立窗口中运行。主工作区不再内嵌插件配置，也不存在第二个配置入口。
+
+后续自定义 WebView 或进程内 Native UI 仍应沿用同一窗口入口和生命周期，不得直接挂载主窗口 DOM；只有宿主渲染的声明式贡献承诺跨版本兼容。
 
 ## 12. 版本与包信任
 
@@ -181,9 +183,9 @@ running → draining → uninstalling → removed
 
 ## 13. 当前实现状态
 
-当前已经存在：插件目录、安装/卸载、启停持久化、配置 Schema、管理页、控制 API、MCP 基础操作、legacy Native 原始流适配器，以及完整 Native Mod、Sidecar、Native Worker 的生产加载与阶段运行时。多语言作者入口统一位于 `Server/PluginSDK/`。
+当前已经存在：插件目录、安装/卸载、启停持久化、配置 Schema、管理页、控制 API、MCP 基础操作、legacy Native 原始流适配器，以及完整 Native Mod、Sidecar、Native Worker 的生产加载与阶段运行时。多语言作者入口统一位于 `PluginSDK/`。
 
-完整扩展内核和开放配置模型已建立；TCP、SOCKS5 UDP 和 CONNECT 隧道已接入 `TcpChunk`、`UdpDatagram` 与 `ConnectionClosing`。Wasm 生产适配器、HTTP/TLS/WebSocket/录制全部阶段、UI 贡献和更新链仍需接入。能力清单不属于待实现授权系统，也不会成为动作门禁。
+完整扩展内核、开放配置模型和声明式独立插件窗口已建立；TCP、SOCKS5 UDP 和 CONNECT 隧道已接入 `TcpChunk`、`UdpDatagram` 与 `ConnectionClosing`。Wasm 生产适配器、HTTP/TLS/WebSocket/录制全部阶段、自定义 WebView/Native UI 贡献和更新链仍需接入。能力清单不属于待实现授权系统，也不会成为动作门禁。
 
 ## 14. 系统验收
 

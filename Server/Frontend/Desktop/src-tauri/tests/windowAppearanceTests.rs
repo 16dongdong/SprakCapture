@@ -6,6 +6,7 @@ use std::{fs, path::Path};
 use serde_json::{Value, json};
 
 const windowBackgroundColor: &str = "#eef0f3";
+const transparentWindowBackgroundColor: &str = "#00000000";
 
 /// 读取桌面窗口配置；解析失败表示安装契约无效，测试必须报告原始配置路径。
 fn readDesktopConfiguration() -> Value {
@@ -42,7 +43,7 @@ fn mainWindowUsesStableNativeChrome() {
     assert_eq!(mainWindow["backgroundColor"], windowBackgroundColor);
 }
 
-/// 验证悬浮面板保持紧凑、无任务栏重复入口且不可最小化，关闭按钮仍由后台生命周期转换为隐藏。
+/// 验证悬浮面板使用紧凑尺寸、独立透明 `WebView` 与 Acrylic 材质；透明能力只作用于悬浮窗，避免主工作区出现黑边或点击穿透。
 #[test]
 fn floatingWindowKeepsCompactPanelBehavior() {
     let configuration = readDesktopConfiguration();
@@ -53,7 +54,20 @@ fn floatingWindowKeepsCompactPanelBehavior() {
     assert_eq!(floatingWindow["maximizable"], false);
     assert_eq!(floatingWindow["minimizable"], false);
     assert_eq!(floatingWindow["closable"], true);
-    assert_eq!(floatingWindow["maxWidth"], json!(520));
-    assert_eq!(floatingWindow["maxHeight"], json!(420));
-    assert_eq!(floatingWindow["backgroundColor"], windowBackgroundColor);
+    assert_eq!(floatingWindow["width"], json!(340));
+    assert_eq!(floatingWindow["height"], json!(250));
+    assert_eq!(floatingWindow["minWidth"], json!(320));
+    assert_eq!(floatingWindow["minHeight"], json!(230));
+    assert_eq!(floatingWindow["maxWidth"], json!(420));
+    assert_eq!(floatingWindow["maxHeight"], json!(320));
+    assert_eq!(floatingWindow["transparent"], true);
+    assert_eq!(floatingWindow["decorations"], false);
+    assert_eq!(
+        floatingWindow["backgroundColor"],
+        transparentWindowBackgroundColor
+    );
+    assert_eq!(
+        floatingWindow["windowEffects"]["effects"],
+        json!(["acrylic"])
+    );
 }

@@ -16,7 +16,6 @@ import {
   type NoCachingConfiguration,
   type MirrorConfiguration,
   type RewriteConfiguration,
-  type RecordingRuleConfiguration,
   type PacketFilterConfiguration,
   type ServiceSnapshot,
   type ThrottlingConfiguration,
@@ -51,7 +50,6 @@ import {
 import { useModalFocus } from "./modalFocus";
 import { downloadArchive } from "./downloadArchive";
 import type { TransactionToolSeed } from "./transactionToolSeed";
-import { RecordingRulesEditor } from "./recordingRulesEditor";
 import { PacketFiltersEditor } from "./packetFiltersEditor";
 import {
   validateToolConfiguration,
@@ -61,7 +59,6 @@ import {
 
 /** 标识工具栏中可打开的唯一 L3 工作流；导出与规则编辑共用同一宿主，避免并列对话框。 */
 export type ToolDialogId =
-  | "recordingRules"
   | "packetFilters"
   | "blockList"
   | "noCaching"
@@ -328,18 +325,11 @@ function formatValidationMessage(
     issue.field === "configuration"
       ? "tools.configuration"
       : `tools.form.${issue.field}`;
-  const fieldLabel =
-    tool === "recordingRules" && issue.field === "setName"
-      ? t("tools.recordingRules.setName")
-      : t(fieldKey);
+  const fieldLabel = t(fieldKey);
   const positions = [
     issue.setIndex === undefined
       ? null
-      : tool === "recordingRules"
-        ? t("tools.recordingRules.defaultSetName", {
-            sequence: issue.setIndex + 1,
-          })
-        : `${t("tools.form.ruleSets")} ${issue.setIndex + 1}`,
+      : `${t("tools.form.ruleSets")} ${issue.setIndex + 1}`,
     issue.ruleIndex === undefined
       ? null
       : `${t("tools.form.rules")} ${issue.ruleIndex + 1}`,
@@ -367,7 +357,6 @@ export function ToolSettingsDialog({
     snapshot,
     actionPending,
     updateBlockList,
-    updateRecordingRules,
     updatePacketFilters,
     updateNoCaching,
     updateBlockCookies,
@@ -487,11 +476,7 @@ export function ToolSettingsDialog({
       return;
     }
     setValidationAttempted(false);
-    if (tool === "recordingRules") {
-      await updateRecordingRules(
-        activeConfiguration as RecordingRuleConfiguration,
-      );
-    } else if (tool === "packetFilters") {
+    if (tool === "packetFilters") {
       await updatePacketFilters(
         activeConfiguration as PacketFilterConfiguration,
       );
@@ -626,20 +611,7 @@ export function ToolSettingsDialog({
                 </span>
               </label>
             )}
-            {tool === "recordingRules" && activeConfiguration !== null ? (
-              <RecordingRulesEditor
-                configuration={
-                  activeConfiguration as RecordingRuleConfiguration
-                }
-                disabled={actionPending}
-                onChange={(nextConfiguration) => {
-                  setDraftConfiguration({
-                    tool: "recordingRules",
-                    configuration: nextConfiguration,
-                  });
-                }}
-              />
-            ) : tool === "packetFilters" && activeConfiguration !== null ? (
+            {tool === "packetFilters" && activeConfiguration !== null ? (
               <PacketFiltersEditor
                 configuration={
                   activeConfiguration as PacketFilterConfiguration

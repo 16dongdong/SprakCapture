@@ -2,23 +2,34 @@ use std::{
     convert::Infallible,
     io,
     net::{IpAddr, SocketAddr},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
-use capture_core::RecordingSession;
+use capture_core::{
+    BeginTransaction, RecordingSession, TransactionProtocol, currentTimeMilliseconds,
+};
+use http::Method;
 use hyper::{Request, body::Incoming, service::service_fn};
 use hyper_util::{
     rt::{TokioExecutor, TokioIo, TokioTimer},
     server::conn::auto,
 };
+use location_core::ResolvedLocation;
 use plugin_host::PluginHost;
-use tokio::{net::TcpStream, time::timeout};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    time::timeout,
+};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     DnsSpoofingConfiguration, DnsSpoofingTool, HttpProxyConfig, HttpProxyDependencies,
     HttpProxyError, SslMitmManager, ToolPipeline,
+    captureBridge::CaptureTransaction,
     connector::FixedConnectTarget,
     error::RequestFailure,
     forwarder::{ProxyContext, UpstreamTransport, failureResponse, forwardDecodedHttp},
@@ -147,13 +158,16 @@ impl SocksHttpTunnelHandler {
     /// 运行上下文：分类器已验证完整请求头的 Host 与 SOCKS5 目标一致，避免把“通往另一个 HTTP 代理”的原始隧道误接管。
     /// 参数：clientStream 是 SOCKS5 成功响应后的客户端字节流；clientAddress 用于事务来源字段。
     /// 失败语义：连接级协议中断按正常 EOF 收束；取消信号或底层 I/O 失败返回 io::Error。
-    pub async fn servePlainHttp(
+    pub async fn servePlainHttp<S>(
         &self,
-        clientStream: TcpStream,
+        clientStream: S,
         clientAddress: SocketAddr,
         target: SocksHttpTarget,
         cancellation: CancellationToken,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
         let mut context = self.contextForTarget(&target);
         context.cancellation = cancellation;
         serveHttpConnection(
@@ -172,25 +186,47 @@ impl SocksHttpTunnelHandler {
     ///
     /// 运行上下文：仅在 SSL 规则已经命中 SOCKS5 目标且首段符合 TLS 记录时调用；上游仍由共享 HTTPS 客户端执行严格证书验证。
     /// 参数：targetHost、targetPort 来自 SOCKS5 CONNECT，决定叶证书、URL 位置和上游目标绑定。
-    /// 失败语义：证书生成、握手超时或取消均关闭当前 SOCKS5 会话；握手失败计入 SSL 统计但不生成伪造 HTTP 事务。
-    pub async fn serveInterceptedHttps(
+    /// 失败语义：证书生成、握手超时或取消均关闭当前 SOCKS5 会话，并创建一条使用稳定错误码的
+    /// CONNECT 失败事务；不存在 HTTP 请求不代表失败可以消失，界面必须能展示握手阶段及原因。
+    pub async fn serveInterceptedHttps<S>(
         &self,
-        clientStream: TcpStream,
+        clientStream: S,
         clientAddress: SocketAddr,
         target: SocksHttpTarget,
         cancellation: CancellationToken,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
         let mut context = self.contextForTarget(&target);
         context.cancellation = cancellation;
-        let configuration = self
-            .context
-            .ssl
-            .downstreamServerConfiguration(&target.host)
-            .map_err(|_| io::Error::other("SOCKS5 TLS 服务器配置失败"))?;
+        let configuration = match self.context.ssl.downstreamServerConfiguration(&target.host) {
+            Ok(configuration) => configuration,
+            Err(_) => {
+                recordSocksConnectionFailure(
+                    &context,
+                    SocksConnectionFailure::fromTarget(
+                        &target,
+                        clientAddress,
+                        RequestFailure::DownstreamTlsHandshake,
+                    ),
+                )
+                .await;
+                return Err(io::Error::other("SOCKS5 TLS 服务器配置失败"));
+            }
+        };
         let acceptor = TlsAcceptor::from(configuration);
         let downstreamTls = tokio::select! {
             biased;
             () = context.cancellation.cancelled() => {
+                recordSocksConnectionFailure(
+                    &context,
+                    SocksConnectionFailure::fromTarget(
+                        &target,
+                        clientAddress,
+                        RequestFailure::Cancelled,
+                    ),
+                ).await;
                 return Err(io::Error::new(io::ErrorKind::Interrupted, "SOCKS5 TLS 解密已取消"));
             }
             result = timeout(context.config.connectTimeout(), acceptor.accept(clientStream)) => result,
@@ -202,10 +238,28 @@ impl SocksHttpTunnelHandler {
             }
             Ok(Err(error)) => {
                 context.ssl.recordHandshakeFailure();
+                recordSocksConnectionFailure(
+                    &context,
+                    SocksConnectionFailure::fromTarget(
+                        &target,
+                        clientAddress,
+                        RequestFailure::DownstreamTlsHandshake,
+                    ),
+                )
+                .await;
                 return Err(io::Error::other(error));
             }
             Err(_) => {
                 context.ssl.recordHandshakeFailure();
+                recordSocksConnectionFailure(
+                    &context,
+                    SocksConnectionFailure::fromTarget(
+                        &target,
+                        clientAddress,
+                        RequestFailure::DownstreamTlsHandshake,
+                    ),
+                )
+                .await;
                 return Err(io::Error::new(
                     io::ErrorKind::TimedOut,
                     "SOCKS5 TLS 握手超时",
@@ -259,7 +313,8 @@ impl SocksHttpTunnelHandler {
 ///
 /// 运行上下文：本函数不处理 SOCKS5 协商、原始 TCP 复制或 UDP 数据报，确保已解密事务不会回流到原始流录制。
 /// 参数：downstream 是明文或已解密的双向字节流；mode 标识协议边界；context 提供录制和上游客户端。
-/// 失败语义：客户端主动关闭或 HTTP 解析失败按连接结束处理；服务取消时优雅关闭并在超时后返回中断错误。
+/// 失败语义：请求形成后的错误由标准 HTTP 事务记录；请求形成前的协议错误会生成已知目标的
+/// CONNECT 失败事务并返回 I/O 错误；取消时优雅关闭，排空超时返回中断错误。
 async fn serveHttpConnection<S>(
     downstream: S,
     clientAddress: SocketAddr,
@@ -269,9 +324,12 @@ async fn serveHttpConnection<S>(
 where
     S: hyper::rt::Read + hyper::rt::Write + Unpin + Send + 'static,
 {
+    let requestObserved = Arc::new(AtomicBool::new(false));
+    let serviceRequestObserved = Arc::clone(&requestObserved);
     let serviceContext = context.clone();
     let serviceMode = mode.clone();
     let service = service_fn(move |request: Request<Incoming>| {
+        serviceRequestObserved.store(true, Ordering::Release);
         let requestContext = serviceContext.clone();
         let requestMode = serviceMode.clone();
         async move {
@@ -291,7 +349,22 @@ where
                         )
                         .await
                     }
-                    _ => failureResponse(RequestFailure::InvalidRequest),
+                    _ => {
+                        recordSocksConnectionFailure(
+                            &requestContext,
+                            SocksConnectionFailure::new(
+                                SocksFailureTarget {
+                                    host,
+                                    port,
+                                    tls: false,
+                                    clientAddress,
+                                },
+                                RequestFailure::InvalidRequest,
+                            ),
+                        )
+                        .await;
+                        failureResponse(RequestFailure::InvalidRequest)
+                    }
                 },
                 SocksHttpMode::Tls { host, port } => {
                     match parseHttpsTarget(&request, &host, port) {
@@ -306,7 +379,22 @@ where
                             )
                             .await
                         }
-                        Err(_) => failureResponse(RequestFailure::InvalidRequest),
+                        Err(_) => {
+                            recordSocksConnectionFailure(
+                                &requestContext,
+                                SocksConnectionFailure::new(
+                                    SocksFailureTarget {
+                                        host,
+                                        port,
+                                        tls: true,
+                                        clientAddress,
+                                    },
+                                    RequestFailure::InvalidRequest,
+                                ),
+                            )
+                            .await;
+                            failureResponse(RequestFailure::InvalidRequest)
+                        }
                     }
                 }
             };
@@ -326,8 +414,21 @@ where
         result = &mut connection => {
             match result {
                 Ok(()) => Ok(()),
-                // 无效 HTTP 或客户端断连只结束当前 SOCKS5 会话，不扩大为服务级故障。
-                Err(_) => Ok(()),
+                Err(error) => {
+                    // Hyper 在构造 Request 之前拒绝畸形首行/头部时不会进入 service；过去该失败既无
+                    // HTTP 事务也无 SOCKS 原始事务。目标已由 CONNECT 确认，因此在此补一条可定位记录。
+                    if !requestObserved.load(Ordering::Acquire) {
+                        recordSocksConnectionFailure(
+                            &context,
+                            SocksConnectionFailure::fromMode(
+                                &mode,
+                                clientAddress,
+                                RequestFailure::InvalidRequest,
+                            ),
+                        ).await;
+                    }
+                    Err(io::Error::other(error))
+                },
             }
         }
         () = context.cancellation.cancelled() => {
@@ -337,5 +438,124 @@ where
             }
             Ok(())
         }
+    }
+}
+
+/// 保存一次尚未形成 HTTP 请求的已知目标连接失败；该领域对象收拢协议、端点与失败原因，避免调用方传递易错的位置参数。
+struct SocksConnectionFailure {
+    host: String,
+    port: u16,
+    tls: bool,
+    clientAddress: SocketAddr,
+    failure: RequestFailure,
+}
+
+/// 保存失败事务的已验证端点与协议身份；该对象避免 host、port、TLS 标志和来源地址在调用链中错位。
+struct SocksFailureTarget {
+    host: String,
+    port: u16,
+    tls: bool,
+    clientAddress: SocketAddr,
+}
+
+impl SocksConnectionFailure {
+    /// 从已验证 SOCKS 目标构造失败描述；目标字段只用于事务 Location，不包含底层错误文本。
+    fn fromTarget(
+        target: &SocksHttpTarget,
+        clientAddress: SocketAddr,
+        failure: RequestFailure,
+    ) -> Self {
+        Self::new(
+            SocksFailureTarget {
+                host: target.host.clone(),
+                port: target.port,
+                tls: true,
+                clientAddress,
+            },
+            failure,
+        )
+    }
+
+    /// 从 HTTP 连接模式构造失败描述；Plain 与 TLS 共用相同的结构化录制入口。
+    fn fromMode(mode: &SocksHttpMode, clientAddress: SocketAddr, failure: RequestFailure) -> Self {
+        match mode {
+            SocksHttpMode::Plain { host, port } => Self::new(
+                SocksFailureTarget {
+                    host: host.clone(),
+                    port: *port,
+                    tls: false,
+                    clientAddress,
+                },
+                failure,
+            ),
+            SocksHttpMode::Tls { host, port } => Self::new(
+                SocksFailureTarget {
+                    host: host.clone(),
+                    port: *port,
+                    tls: true,
+                    clientAddress,
+                },
+                failure,
+            ),
+        }
+    }
+
+    /// 构造完整失败描述；参数由已验证目标提供，失败语义始终通过稳定错误码而不是底层字符串公开。
+    fn new(target: SocksFailureTarget, failure: RequestFailure) -> Self {
+        Self {
+            host: target.host,
+            port: target.port,
+            tls: target.tls,
+            clientAddress: target.clientAddress,
+            failure,
+        }
+    }
+}
+
+/// 将 TLS 握手、TLS 配置和请求解析失败写入统一事务存储；录制关闭或已清空时不影响真实连接终止语义。
+async fn recordSocksConnectionFailure(context: &ProxyContext, failure: SocksConnectionFailure) {
+    let scheme = if failure.tls { "https" } else { "http" };
+    let displayHost = if failure.host.contains(':') {
+        format!("[{}]", failure.host)
+    } else {
+        failure.host.clone()
+    };
+    let input = BeginTransaction {
+        protocol: TransactionProtocol::Tunnel,
+        method: Method::CONNECT.as_str().to_owned(),
+        location: ResolvedLocation {
+            protocol: scheme.to_owned(),
+            host: failure.host,
+            port: failure.port,
+            path: String::new(),
+            query: String::new(),
+            display: format!("{scheme}://{displayHost}:{}", failure.port),
+        },
+        clientAddress: failure.clientAddress.to_string(),
+        clientProcessName: context.clientProcessName.clone(),
+        clientProcessId: context.clientProcessId,
+        contentType: String::new(),
+        startAtMilliseconds: currentTimeMilliseconds(),
+    };
+    let transaction = match CaptureTransaction::begin(&context.capture, input).await {
+        Ok(transaction) => transaction,
+        Err(error) => {
+            tracing::error!(
+                errorCode = error.code(),
+                messageKey = error.messageKey(),
+                "captureOperationFailed"
+            );
+            return;
+        }
+    };
+    let Some(transaction) = transaction else {
+        return;
+    };
+    if let Err(error) = transaction.fail(failure.failure).await {
+        tracing::error!(
+            errorCode = error.code(),
+            messageKey = error.messageKey(),
+            "captureOperationFailed"
+        );
     }
 }

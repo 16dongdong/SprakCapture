@@ -6,8 +6,95 @@
     <meta name="color-scheme" content="light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Sprak Capture 控制台</title>
+    <style>
+      /*
+       * 启动层必须内联在首个 HTML 响应中，不能依赖 React、字体或样式分包；
+       * WebView 完成文档解析后即可绘制品牌界面，从而覆盖脚本下载与初始化阶段的空白帧。
+       */
+      .startupLoading {
+        position: fixed;
+        z-index: 2147483647;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 10px;
+        color: #263249;
+        background:
+          radial-gradient(circle at 50% 38%, #ffffff 0, #f2f6fc 38%, transparent 68%),
+          #e9eff7;
+        font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+        transition: opacity 180ms ease, visibility 180ms ease;
+      }
+
+      .startupLoading.isReady {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .startupLoadingLogo {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 76px;
+        height: 76px;
+      }
+
+      .startupLoadingLogo img {
+        width: 54px;
+        height: 54px;
+        filter: drop-shadow(0 8px 18px rgb(31 66 139 / 24%));
+      }
+
+      .startupLoadingLogo::after {
+        position: absolute;
+        inset: 0;
+        content: "";
+        border: 2px solid rgb(55 118 220 / 14%);
+        border-top-color: #3776dc;
+        border-radius: 50%;
+        animation: startupLoadingSpin 900ms linear infinite;
+      }
+
+      .startupLoading strong {
+        font-size: 18px;
+        letter-spacing: 0.02em;
+      }
+
+      .startupLoading > span {
+        color: #6b7586;
+        font-size: 12px;
+      }
+
+      @keyframes startupLoadingSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .startupLoadingLogo::after {
+          animation: none;
+          border-color: rgb(55 118 220 / 32%);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div
+      id="startupLoading"
+      class="startupLoading"
+      role="status"
+      aria-live="polite"
+      aria-label="Sprak Capture 正在加载"
+    >
+      <div class="startupLoadingLogo" aria-hidden="true">
+        <img src="/favicon.svg" alt="" />
+      </div>
+      <strong>Sprak Capture</strong>
+      <span>正在加载工作区</span>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

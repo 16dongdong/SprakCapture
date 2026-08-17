@@ -152,7 +152,7 @@ async fn replaceMcpConfiguration(
         );
     }
     let mcp = state.mcp.publicState().await;
-    state.publishRevisioned(|serverInstanceId, revision| super::EventMessage::Mcp {
+    state.publishProjectionRevisioned(|serverInstanceId, revision| super::EventMessage::Mcp {
         serverInstanceId,
         revision,
         mcp,

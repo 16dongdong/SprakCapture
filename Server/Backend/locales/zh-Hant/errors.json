@@ -53,5 +53,10 @@
   "error.pluginOperationFailed": "外掛程式操作失敗。",
   "error.invalidProcessSelectionRequest": "进程选择请求无效。",
   "error.processSelectionOperationFailed": "保存或应用进程选择失败：{{detail}}",
-  "error.configurationPersistenceFailed": "保存配置文件失败：{{detail}}"
+  "error.configurationPersistenceFailed": "保存配置文件失败：{{detail}}",
+  "error.clientPackageBusy": "已有用戶端產生工作正在執行",
+  "error.clientPackageAuthenticationFailed": "SOCKS5 帳號或密碼無效。",
+  "error.clientPackageServiceUnavailable": "帳號服務或遠端規則服務暫時無法使用。",
+  "error.clientPackageOperationFailed": "用戶端安裝包操作失敗",
+  "error.clientNodeUnavailable": "未找到可供 Android 裝置存取的本機網路位址"
 }

@@ -16,6 +16,123 @@ import {
   createTransactionSummary,
 } from "#tests/testFixtures";
 
+describe("界面上下文控制客户端", () => {
+  /** 上报必须使用唯一 PUT 路径并严格解析服务端确认的窗口集合。 */
+  it("提交当前页面与事务选择", async () => {
+    const update = {
+      instanceId: "8f5606c4-f441-4c20-b120-e365b8451b64",
+      sequence: 3,
+      windowKind: "main" as const,
+      page: "connections" as const,
+      section: null,
+      view: "contents",
+      selection: {
+        kind: "transaction" as const,
+        ids: ["transaction-alpha"],
+        side: null,
+        sequence: null,
+      },
+      focused: true,
+      visible: true,
+    };
+    const context = { ...update, updatedAtMilliseconds: 123 };
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ primary: context, contexts: [context] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new HttpControlClient(
+      "http://127.0.0.1:17890",
+      requestFetch,
+    );
+
+    await expect(client.updateUiContext(update)).resolves.toEqual({
+      primary: context,
+      contexts: [context],
+    });
+    expect(requestFetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:17890/api/v1/ui/context",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify(update) }),
+    );
+  });
+});
+
+describe("多账号控制客户端", () => {
+  /** 实时摘要使用独立严格端点，避免为每秒指标读取重建完整服务快照。 */
+  it("读取多账号局部实时快照", async () => {
+    const multiAccount = {
+      ...createServiceSnapshot().configuration.multiAccount,
+      enabled: true,
+      state: "running",
+      summary: {
+        onlineAccounts: 3,
+        activeConnections: 7,
+        uploadBytesPerSecond: 1_024,
+        downloadBytesPerSecond: 2_048,
+      },
+    };
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(multiAccount), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new HttpControlClient("http://127.0.0.1:17890", requestFetch);
+
+    await expect(client.getMultiAccountState()).resolves.toEqual(multiAccount);
+    expect(requestFetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:17890/api/v1/multiAccount",
+      expect.objectContaining({ credentials: "same-origin", method: "GET" }),
+    );
+  });
+
+  /** Key 读取与一次性会话均禁止携带凭据正文，并对响应执行严格协议校验。 */
+  it("使用无请求体端点读取 Key 并创建管理会话", async () => {
+    const identity = {
+      username: "Admin",
+      credentialRevision: 1,
+      apiKeyPrefix: "sak_v1_test_••••",
+      apiKeyCreatedAt: 1,
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ identity, apiKey: "sak_v1_test_secret" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ path: "/account-management/api/v1/auth/local?ticket=test-ticket" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const client = new HttpControlClient("http://127.0.0.1:17890", requestFetch);
+
+    await expect(client.getManagementApiKey()).resolves.toEqual({
+      identity,
+      apiKey: "sak_v1_test_secret",
+    });
+    await expect(client.createManagementSession()).resolves.toEqual({
+      path: "/account-management/api/v1/auth/local?ticket=test-ticket",
+    });
+    expect(requestFetch).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:17890/api/v1/multiAccount/apiKey",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(requestFetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:17890/api/v1/multiAccount/managementSession",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(requestFetch.mock.calls[0]?.[1]).not.toHaveProperty("body");
+    expect(requestFetch.mock.calls[1]?.[1]).not.toHaveProperty("body");
+  });
+});
+
 /**
  * 创建携带严格快照的 JSON 响应，避免各用例复制响应头和序列化逻辑。
  */

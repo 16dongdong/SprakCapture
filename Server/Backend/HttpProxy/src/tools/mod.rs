@@ -12,7 +12,6 @@ mod mapSupport;
 mod messageDraft;
 mod mirror;
 mod noCaching;
-mod recordingRules;
 mod rewrite;
 mod throttling;
 
@@ -46,7 +45,6 @@ pub use mirror::{
     MirrorTool,
 };
 pub use noCaching::{HeaderMutation, NoCachingConfiguration, NoCachingTool};
-pub use recordingRules::RecordingRulesTool;
 pub use rewrite::{
     HeaderAction, RewriteConfiguration, RewriteError, RewriteRule, RewriteRuleType, RewriteSet,
     RewriteTool,

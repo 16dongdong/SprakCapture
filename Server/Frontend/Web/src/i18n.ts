@@ -26,9 +26,16 @@ export const supportedLocales = [
 ] as const;
 export const automaticLocale = "auto" as const;
 export const localeStorageKey = "capture.ui.locale";
+const localeBroadcastChannelName = "capture.ui.locale.sync";
+const localePreferenceChangedEventName = "capture.ui.locale.changed";
 
 export type SupportedLocale = (typeof supportedLocales)[number];
 export type LocalePreference = SupportedLocale | typeof automaticLocale;
+
+interface LocalePreferenceMessage {
+  type: "localePreference";
+  preference: LocalePreference;
+}
 
 const localeResources = {
   en: { app: en },
@@ -112,6 +119,28 @@ export function readLocalePreference(): LocalePreference {
     : automaticLocale;
 }
 
+/** 校验跨窗口传入的语言偏好；运行时消息不能依赖 TypeScript 静态类型。 */
+function isLocalePreference(value: unknown): value is LocalePreference {
+  return (
+    value === automaticLocale ||
+    supportedLocales.includes(value as SupportedLocale)
+  );
+}
+
+/** 校验多窗口消息结构；未知消息由当前窗口忽略，不改变已应用语言。 */
+function isLocalePreferenceMessage(
+  value: unknown,
+): value is LocalePreferenceMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const message = value as Partial<LocalePreferenceMessage>;
+  return (
+    message.type === "localePreference" &&
+    isLocalePreference(message.preference)
+  );
+}
+
 /**
  * 解析当前有效语言；auto 只读取浏览器候选，不把推断结果覆盖用户持久选择。
  */
@@ -139,14 +168,51 @@ void i18next.use(initReactI18next).init({
   },
 });
 
-/**
- * 持久化并立即应用语言选择；auto 保留选择本身，系统语言变化时仍可重新协商。
- */
+/** 通知当前窗口内的受控选择器同步偏好值，正文刷新继续由 i18next 负责。 */
+function notifyLocalePreferenceChanged(preference: LocalePreference): void {
+  window.dispatchEvent(
+    new CustomEvent<LocalePreference>(localePreferenceChangedEventName, {
+      detail: preference,
+    }),
+  );
+}
+
+/** 应用已校验的偏好；远端同步不会再次广播，避免多窗口之间形成消息回环。 */
+async function applyLocalePreference(
+  preference: LocalePreference,
+  persist: boolean,
+): Promise<void> {
+  await i18next.changeLanguage(resolveLocalePreference(preference));
+  if (persist) {
+    window.localStorage.setItem(localeStorageKey, preference);
+  }
+  notifyLocalePreferenceChanged(preference);
+}
+
+/** 持久化并广播语言选择；主窗口、设置窗口和悬浮窗口会在同一事件周期内切换。 */
 export async function changeLocalePreference(
   preference: LocalePreference,
 ): Promise<void> {
-  window.localStorage.setItem(localeStorageKey, preference);
-  await i18next.changeLanguage(resolveLocalePreference(preference));
+  await applyLocalePreference(preference, true);
+  localeBroadcastChannel?.postMessage({
+    type: "localePreference",
+    preference,
+  } satisfies LocalePreferenceMessage);
+}
+
+/** 订阅当前窗口的语言偏好变化；返回清理函数，组件卸载后不会残留监听器。 */
+export function subscribeLocalePreference(
+  listener: (preference: LocalePreference) => void,
+): () => void {
+  const eventListener = (event: Event) => {
+    const preference = (event as CustomEvent<unknown>).detail;
+    if (isLocalePreference(preference)) {
+      listener(preference);
+    }
+  };
+  window.addEventListener(localePreferenceChangedEventName, eventListener);
+  return () =>
+    window.removeEventListener(localePreferenceChangedEventName, eventListener);
 }
 
 /**
@@ -164,11 +230,29 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key === localeStorageKey && isLocalePreference(event.newValue)) {
+      void applyLocalePreference(event.newValue, false);
+    }
+  });
   window.addEventListener("languagechange", () => {
     if (readLocalePreference() === automaticLocale) {
       void i18next.changeLanguage(resolveLocalePreference(automaticLocale));
     }
   });
 }
+
+// 独立 WebView 不一定派发同源 storage 事件，因此桌面多窗口使用 BroadcastChannel 作为即时主路径。
+const LocaleBroadcastChannel =
+  typeof window === "undefined" ? undefined : window.BroadcastChannel;
+const localeBroadcastChannel = LocaleBroadcastChannel
+  ? new LocaleBroadcastChannel(localeBroadcastChannelName)
+  : null;
+localeBroadcastChannel?.addEventListener("message", (event) => {
+  const message: unknown = event.data;
+  if (isLocalePreferenceMessage(message)) {
+    void applyLocalePreference(message.preference, true);
+  }
+});
 
 export default i18next;

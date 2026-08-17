@@ -53,5 +53,10 @@
   "error.pluginOperationFailed": "플러그인 작업에 실패했습니다.",
   "error.invalidProcessSelectionRequest": "The process selection request is invalid.",
   "error.processSelectionOperationFailed": "Failed to save or apply the process selection: {{detail}}",
-  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}"
+  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}",
+  "error.clientPackageBusy": "A client package build is already running.",
+  "error.clientPackageAuthenticationFailed": "SOCKS5 계정 또는 비밀번호가 올바르지 않습니다.",
+  "error.clientPackageServiceUnavailable": "계정 서비스 또는 원격 규칙 서비스를 사용할 수 없습니다.",
+  "error.clientPackageOperationFailed": "The client package operation failed.",
+  "error.clientNodeUnavailable": "No local network address reachable by the Android device was found."
 }

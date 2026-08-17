@@ -16,7 +16,7 @@ use std::{
 
 use plugin_host::PluginHost;
 use socks5_core::{
-    AddressOverride, AuthenticationMode, Socks5Config,
+    AddressOverride, AuthenticationMode, FusedProxyDependencies, FusedProxyOptions, Socks5Config,
     address::{TargetAddress, TargetHost, encodeTargetAddress, readTargetAddress},
     interception::PortProtocolHandler,
     protocol::{decodeUdpPacket, encodeUdpPacket},
@@ -233,12 +233,14 @@ async fn prioritizesClaimedConnectionAndShutsDownProtocolHandler() {
     });
     let server = startFusedProxyServer(
         testConfig(),
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(handler),
-        None,
-        false,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(handler),
+            outboundConnector: None,
+        },
+        FusedProxyOptions::default(),
     )
     .await
     .expect("融合监听必须启动");
@@ -295,15 +297,20 @@ async fn isolatesInternalCaptureListenerAndStopsBothEntrypoints() {
     let servedConnections = Arc::new(AtomicUsize::new(0));
     let server = startFusedProxyServer(
         testConfig(),
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(Arc::new(InternalCaptureHandler {
-            observedByte: observedByte.clone(),
-            servedConnections: servedConnections.clone(),
-        })),
-        None,
-        true,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(Arc::new(InternalCaptureHandler {
+                observedByte: observedByte.clone(),
+                servedConnections: servedConnections.clone(),
+            })),
+            outboundConnector: None,
+        },
+        FusedProxyOptions {
+            enableInternalCaptureListener: true,
+            accountServiceConfig: None,
+        },
     )
     .await
     .expect("双入口融合监听必须启动");
@@ -389,14 +396,19 @@ async fn rejectsUnclaimedInternalConnectionsAndOmitsDisabledListener() {
     let serveCalled = Arc::new(AtomicBool::new(false));
     let server = startFusedProxyServer(
         testConfig(),
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(Arc::new(RejectingInternalHandler {
-            serveCalled: serveCalled.clone(),
-        })),
-        None,
-        true,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(Arc::new(RejectingInternalHandler {
+                serveCalled: serveCalled.clone(),
+            })),
+            outboundConnector: None,
+        },
+        FusedProxyOptions {
+            enableInternalCaptureListener: true,
+            accountServiceConfig: None,
+        },
     )
     .await
     .expect("内部监听必须启动");
@@ -429,12 +441,14 @@ async fn rejectsUnclaimedInternalConnectionsAndOmitsDisabledListener() {
 
     let disabledServer = startFusedProxyServer(
         testConfig(),
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(Arc::new(RejectingInternalHandler { serveCalled })),
-        None,
-        false,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(Arc::new(RejectingInternalHandler { serveCalled })),
+            outboundConnector: None,
+        },
+        FusedProxyOptions::default(),
     )
     .await
     .expect("禁用内部入口时公开监听必须启动");
@@ -503,15 +517,17 @@ async fn forceStopBypassesProtocolDrainAndAbortsTasks() {
     });
     let server = startFusedProxyServer(
         testConfig(),
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(Arc::new(BlockingShutdownHandler {
-            abortCalled: abortCalled.clone(),
-            trackedTask: Arc::new(Mutex::new(Some(trackedTask))),
-        })),
-        None,
-        false,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(Arc::new(BlockingShutdownHandler {
+                abortCalled: abortCalled.clone(),
+                trackedTask: Arc::new(Mutex::new(Some(trackedTask))),
+            })),
+            outboundConnector: None,
+        },
+        FusedProxyOptions::default(),
     )
     .await
     .expect("融合监听必须启动");
@@ -591,12 +607,14 @@ async fn closesUnclassifiedConnectionAfterPeekTimeout() {
     }
     let server = startFusedProxyServer(
         config,
-        PluginHost::disabled(),
-        None,
-        None,
-        Some(Arc::new(NonClaimingHandler(handler))),
-        None,
-        false,
+        FusedProxyDependencies {
+            pluginHost: PluginHost::disabled(),
+            tunnelInterceptor: None,
+            addressOverride: None,
+            protocolHandler: Some(Arc::new(NonClaimingHandler(handler))),
+            outboundConnector: None,
+        },
+        FusedProxyOptions::default(),
     )
     .await
     .expect("融合监听必须启动");

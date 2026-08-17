@@ -13,7 +13,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as base64Standard};
 use serde_json::{Value, json};
 
-const expectedTools: [&str; 60] = [
+const expectedTools: [&str; 62] = [
     "capture_auto_save_get",
     "capture_auto_save_now",
     "capture_auto_save_update",
@@ -22,6 +22,7 @@ const expectedTools: [&str; 60] = [
     "capture_breakpoint_get_settings",
     "capture_breakpoint_list_suspended",
     "capture_breakpoint_update",
+    "capture_client_package_get",
     "capture_config_get",
     "capture_config_update",
     "capture_export_har",
@@ -39,6 +40,7 @@ const expectedTools: [&str; 60] = [
     "capture_recording_get",
     "capture_recording_update",
     "capture_service_get_snapshot",
+    "capture_ui_get_context",
     "capture_service_start",
     "capture_service_stop",
     "capture_sessions_clear_finished",
@@ -579,6 +581,10 @@ fn baselineAndSslToolsUseStableStdioControlContracts() {
         "stopped"
     );
     assert_eq!(
+        structuredContent(session.callTool("capture_ui_get_context", json!({})))["primary"]["page"],
+        "connections"
+    );
+    assert_eq!(
         structuredContent(session.callTool("capture_service_start", json!({ "locale": "zh-CN" })))
             ["serviceState"],
         "running"
@@ -714,6 +720,18 @@ fn baselineExpectedRequests(values: &BaselineFixtureValues) -> Vec<ExpectedContr
             responseStatus: 200,
             responseContentType: "application/json",
             responseBody: snapshot.clone(),
+        },
+        ExpectedControlRequest {
+            method: "GET",
+            path: "/api/v1/ui/context",
+            locale: "en",
+            body: RequestBodyExpectation::Empty,
+            responseStatus: 200,
+            responseContentType: "application/json",
+            responseBody: json!({
+                "primary": { "page": "connections", "selection": { "kind": "transaction", "ids": ["transaction-alpha"] } },
+                "contexts": []
+            }),
         },
         ExpectedControlRequest {
             method: "POST",

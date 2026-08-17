@@ -1,4 +1,9 @@
-import type { ListenerSnapshots, ServiceState } from "../api/protocol";
+import type {
+  ListenerSnapshots,
+  ServiceMetrics,
+  ServiceSnapshot,
+  ServiceState,
+} from "../api/protocol";
 import i18n from "../i18n";
 
 export interface ServicePresentation {
@@ -6,6 +11,29 @@ export interface ServicePresentation {
   actionText: string;
   actionKind: "start" | "stop" | "wait";
   tone: "neutral" | "success" | "warning" | "danger";
+}
+
+export type UnifiedTrafficMetrics = ServiceMetrics;
+
+/**
+ * 合并代理监听器与 WinDivert 进程捕获的实时指标；两个数据面由后端分别计数，所有概览界面必须使用同一聚合口径。
+ * 运行上下文：工作台概览和悬浮窗收到同一份服务快照后同步调用，避免只展示代理账本而把进程捕获流量显示为零。
+ * 参数：snapshot 为当前控制服务的权威快照；调用方仅在快照存在时传入。
+ * 失败语义：该函数执行纯数值聚合且不会失败；协议层已保证所有计数均为非负安全整数。
+ */
+export function combineTrafficMetrics(
+  snapshot: ServiceSnapshot,
+): UnifiedTrafficMetrics {
+  return {
+    ...snapshot.metrics,
+    acceptedConnections:
+      snapshot.metrics.acceptedConnections +
+      snapshot.processCapture.acceptedConnections,
+    activeConnections:
+      snapshot.metrics.activeConnections + snapshot.processCapture.trackedFlows,
+    bytesUp: snapshot.metrics.bytesUp + snapshot.processCapture.bytesUp,
+    bytesDown: snapshot.metrics.bytesDown + snapshot.processCapture.bytesDown,
+  };
 }
 
 type ServicePresentationMetadata = Pick<

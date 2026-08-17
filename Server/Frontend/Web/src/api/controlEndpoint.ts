@@ -4,6 +4,39 @@
 export const defaultControlBaseUrl = "http://127.0.0.1:17890";
 
 /**
+ * 判断页面是否运行在 Tauri 的静态资源来源上。
+ *
+ * Tauri 2 生产构建默认使用 `http://tauri.localhost` 提供前端资源；该来源虽然是
+ * HTTP，却不是控制 API。若把它误判成远程 Web 页面，REST 请求会落到静态资源服务，
+ * 得到 HTML 而不是 JSON，桌面端就会显示“控制服务返回了无效 JSON”。
+ */
+export function isTauriRuntimeOrigin(location: Location): boolean {
+  const hostname = location.hostname.toLowerCase();
+  return hostname === "tauri.localhost" || hostname.endsWith(".tauri.localhost");
+}
+
+/**
+ * 判断当前页面是否由远程 HTTP 入口托管；Tauri 静态来源和 Vite 开发态继续直连本机控制端口。
+ *
+ * 运行上下文：默认控制客户端和事件流创建时调用；远程生产页面与控制 API 必须保持同源 Cookie。
+ * 失败语义：服务端渲染或缺少 window 时返回 false，不猜测部署地址。
+ */
+export function shouldUseSameOriginControl(): boolean {
+  return !import.meta.env.DEV
+    && typeof window !== "undefined"
+    && (window.location.protocol === "http:" || window.location.protocol === "https:")
+    && !isTauriRuntimeOrigin(window.location);
+}
+
+/// 选择当前运行环境的默认控制地址；远程生产页面使用同源，桌面和开发环境使用固定回环端口。
+///
+/// 运行上下文：未显式设置 `VITE_CONTROL_BASE_URL` 时使用。
+/// 失败语义：远程 origin 仍由后续规范化校验，非法浏览器地址不会静默回退本机。
+export function defaultRuntimeControlBaseUrl(): string {
+  return shouldUseSameOriginControl() ? window.location.origin : defaultControlBaseUrl;
+}
+
+/**
  * 规范化控制服务基础地址。
  *
  * 运行上下文：构造 REST 与 WebSocket 客户端前执行，确保二者使用同一协议、主机、端口和可选路径前缀。
@@ -11,7 +44,7 @@ export const defaultControlBaseUrl = "http://127.0.0.1:17890";
  * 失败语义：地址为空、包含空白边界、携带凭据或查询片段、或不是 HTTP(S) 绝对地址时抛出 TypeError，阻止前端连接到不确定端点。
  */
 export function resolveControlBaseUrl(controlBaseUrl?: string): string {
-  const candidate = controlBaseUrl ?? defaultControlBaseUrl;
+  const candidate = controlBaseUrl ?? defaultRuntimeControlBaseUrl();
   if (candidate.length === 0 || candidate.trim() !== candidate) {
     throw new TypeError("控制接口基础地址不能为空且不能包含首尾空白");
   }

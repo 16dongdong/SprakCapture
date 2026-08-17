@@ -39,6 +39,65 @@ fn persistenceDescriptorBase64() -> String {
     STANDARD.encode(bytes)
 }
 
+/// 验证“启动时自动开启服务”随统一配置持久化，并由下一控制进程实际恢复监听器。
+///
+/// 运行上下文：测试使用临时数据目录和动态端口模拟桌面应用完全退出后重新启动。
+/// 失败语义：配置字段丢失、启动偏好未执行或数据面未进入运行态都会直接终止用例。
+#[tokio::test]
+async fn serviceAutoStartPreferencePersistsAndStartsNextGeneration() {
+    let dataDirectory = tempfile::tempdir().expect("应创建自动启动测试数据目录");
+    let listenPort = findAvailablePort();
+    let mut configuration = configurationJson(listenPort);
+    configuration["startServiceOnLaunch"] = json!(true);
+
+    {
+        let firstState = ControlState::newWithDataDirectory(dataDirectory.path())
+            .await
+            .expect("首个控制状态应完成配置初始化");
+        let (status, response) = requestJson(
+            createControlRouter(firstState.clone()),
+            Method::PUT,
+            "/api/v1/configuration",
+            configuration,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{response}");
+        assert_eq!(response["configuration"]["startServiceOnLaunch"], true);
+        firstState.beginShutdown();
+    }
+
+    let persisted: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(dataDirectory.path().join("configuration.json"))
+            .expect("应读取统一配置文件"),
+    )
+    .expect("统一配置文件应为合法 JSON");
+    assert_eq!(persisted["service"]["startServiceOnLaunch"], true);
+
+    let secondState = ControlState::newWithDataDirectory(dataDirectory.path())
+        .await
+        .expect("第二个控制状态应恢复自动启动偏好");
+    assert!(
+        secondState
+            .startServiceIfConfigured()
+            .await
+            .expect("自动启动服务应成功")
+    );
+    let (status, snapshot) = requestJson(
+        createControlRouter(secondState.clone()),
+        Method::GET,
+        "/api/v1/snapshot",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(snapshot["serviceState"], "running");
+    secondState
+        .stopService()
+        .await
+        .expect("自动启动的数据面应可停止");
+    secondState.beginShutdown();
+}
+
 /// 验证首次运行生成统一配置文件，路径选择写入后由新控制实例恢复且不依赖旧 PID。
 #[tokio::test]
 async fn unifiedConfigurationPersistsProcessPathsAcrossRestarts() {
@@ -384,9 +443,9 @@ async fn unifiedConfigurationPersistsRecordingPreferencesAcrossRestarts() {
     assert_eq!(restoredResponse["recording"]["recordTunnelMetadata"], false);
 }
 
-/// 验证旧版统一配置缺少 SSL/工具字段时按默认值迁移，并在本次启动写回完整结构。
+/// 验证旧版统一配置补齐当前结构并删除已退役工具字段，迁移后不得继续保存不可达配置。
 #[tokio::test]
-async fn legacyConfigurationAddsPersistentRuleSectionsDuringStartup() {
+async fn legacyConfigurationMigratesCurrentSectionsAndRemovesRetiredTool() {
     let dataDirectory = tempfile::tempdir().expect("应创建旧配置迁移测试目录");
     let configurationPath = dataDirectory.path().join("configuration.json");
     std::fs::write(
@@ -396,6 +455,13 @@ async fn legacyConfigurationAddsPersistentRuleSectionsDuringStartup() {
             "processSelection": {
                 "enabled": false,
                 "selectedPaths": []
+            },
+            "tools": {
+                "recordingRules": {
+                    "enabled": true,
+                    "defaultAction": "record",
+                    "ruleSets": []
+                }
             }
         }))
         .expect("应序列化旧配置夹具"),
@@ -412,6 +478,7 @@ async fn legacyConfigurationAddsPersistentRuleSectionsDuringStartup() {
     assert_eq!(migrated["ssl"]["enabled"], false);
     assert_eq!(migrated["tools"]["mapLocal"]["rules"], json!([]));
     assert_eq!(migrated["tools"]["mapRemote"]["rules"], json!([]));
+    assert!(migrated["tools"].get("recordingRules").is_none());
     assert_eq!(migrated["auxiliaryListeners"]["portForwards"], json!([]));
     assert_eq!(migrated["protocols"]["protobuf"]["enabled"], false);
     assert_eq!(migrated["recording"]["state"], "recording");

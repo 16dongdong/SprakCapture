@@ -1,0 +1,33 @@
+[package]
+name = "client-packager"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "clientPackager"
+path = "src/main.rs"
+
+[dependencies]
+apksig = { version = "0.4", default-features = false, features = ["hash", "signing"] }
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+getrandom = "0.3"
+hex = "0.4"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
+resand = "0.3"
+rsa = { version = "0.9", features = ["pem", "sha2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+time = "0.3"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+zeroize = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = "3"

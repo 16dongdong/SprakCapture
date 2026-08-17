@@ -53,7 +53,7 @@ UDP 使用 `plugin.udp(function)`，始终保留数据报边界。
 ## 构建与测试
 
 ```powershell
-cd Server/PluginSDK/TS
+cd PluginSDK/TS
 npm install
 npm test
 ```

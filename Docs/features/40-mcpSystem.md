@@ -1,4 +1,4 @@
-﻿# 40 MCP 系统设计
+# 40 MCP 系统设计
 
 ## 1. 定位
 
@@ -12,11 +12,18 @@ Sprak Capture **MCP（Model Context Protocol）服务器** 是与 **人工 UI / 
 
 **核心原则：**
 
-1. **功能同步扩展**：每完成一个产品功能，必须同步增加对应 MCP tool（及 `Server/Skill` 说明），禁止「功能已上线但 AI 无法操作」。
+1. **功能同步扩展**：每完成一个产品功能，必须同步增加对应 MCP tool（及 `Skill` 说明），禁止「功能已上线但 AI 无法操作」。
 2. **等价人工**：MCP 能完成的动作 ⊆ 人工通过 UI/API 能完成的动作；语义对齐菜单/对话框/顶栏，不另造旁路特权业务逻辑。
 3. **无权限围栏**：MCP **不**实现插件式权限清单、不降权、不隐藏危险操作。本地控制面已绑定回环；谁能连 MCP 即视为与本机操作者同权。
 4. **单一事实源**：业务状态仍以 `proxyService` 权威 snapshot/`revision` 为准；MCP 不持有第二套状态机。
-5. **Agent 复用 MCP**：后续开发 Agent（见 [39](39-agentSystem.md)）时，**以 MCP 为标准工具面**，避免 Agent 再实现一套私有控制客户端；Skill 仍写在 `Server/Skill`。
+5. **Agent 复用 MCP**：后续开发 Agent（见 [39](39-agentSystem.md)）时，**以 MCP 为标准工具面**，避免 Agent 再实现一套私有控制客户端；Skill 仍写在 `Skill`。
+
+### 2.1 当前界面上下文
+
+主 Web、独立窗口和账号管理 Web 通过 `PUT /api/v1/ui/context` 上报页面、页签、焦点与稳定资源
+标识；`capture_ui_get_context` 读取同一聚合视图。该状态只用于让 Agent 接续用户正在查看的对象，
+不包含正文、凭据或表单草稿，不持久化，也不推进权威业务 `revision`。窗口停止五秒心跳后按固定
+二十秒窗口自动淘汰；乱序请求由窗口内单调 `sequence` 丢弃。
 
 > 与 **完整插件与模块平台（38）** 不同：插件是第三方扩展且有权限模型；MCP 是 **一等公民操作通道**，默认全开。
 > 与 **延后的 Agent 产品（39）** 的关系：Agent **实现可延后**，但 MCP **现在就建**；Agent 上线后 **消费 MCP**，而不是另起 API。
@@ -33,7 +40,7 @@ Sprak Capture **MCP（Model Context Protocol）服务器** 是与 **人工 UI / 
 ```text
 ┌──────────────────────────────────────────────────────────┐
 │  AI 宿主 / 未来 Analysis Agent / 自动化编排               │
-│  + Server/Skill（操作手册，与 MCP 同步维护）                │
+│  + Skill（操作手册，与 MCP 同步维护）                │
 └──────────────────────────▲───────────────────────────────┘
                            │ MCP (stdio 或 SSE)
 ┌──────────────────────────┴───────────────────────────────┐
@@ -48,7 +55,7 @@ Sprak Capture **MCP（Model Context Protocol）服务器** 是与 **人工 UI / 
 
 **部署：**
 
-- 推荐独立二进制/包：`Server/Mcp/` 或 `tools/capture-mcp`，通过 HTTP 调控制面（解耦、易重启）。
+- 推荐独立二进制/包：`Mcp/` 或 `tools/capture-mcp`，通过 HTTP 调控制面（解耦、易重启）。
 - 可选：嵌入 `proxyService` 同进程（减少进程）；仍须 tool 表与本文目录一致。
 
 **传输：** 默认 **stdio**（桌面 AI 集成最常见）；可选 `http://127.0.0.1:<port>/mcp` 供远程调试（仅回环）。

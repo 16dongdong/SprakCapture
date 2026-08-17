@@ -1,4 +1,4 @@
-﻿# Charles 对等能力 — 功能设计文档索引
+# Charles 对等能力 — 功能设计文档索引
 
 > 调研基于 Charles 官方文档（[charles.xin](https://www.charles.xin/documentation/index.html)、[charlesproxy.com](https://www.charlesproxy.com/documentation/)）。  
 > 产品定位：**代理 + 抓包 + 协议分析** 一体的网络数据工作台，而非单纯 SOCKS5 转发器。
@@ -70,7 +70,7 @@
 | 系统 | 文档 | 要点 |
 |---|---|---|
 | **MCP** | [40](40-mcpSystem.md) | AI 经 tools 操作 = 人工 UI/API；**无权限围栏**；每功能必增 tool |
-| **Skill** | [41](41-skillSystem.md) | 操作手册；落地 `Server/Skill`；与 MCP 同步 |
+| **Skill** | [41](41-skillSystem.md) | 操作手册；落地 `Skill`；与 MCP 同步 |
 | **i18n** | [42](42-i18n.md) | 国际主流语言；Tier-1 十语同步补键 |
 | 计划 | [00-mcpAndSkillSync](../Plan/00-mcpAndSkillSync.md)、[00-i18nSync](../Plan/00-i18nSync.md) | 交付纪律 |
 | 目录 | [toolCatalog](../Plan/mcp/toolCatalog.md)、[localeCatalog](../Plan/i18n/localeCatalog.md) | 勾选表 |
@@ -81,7 +81,7 @@
 |---|---|---|
 | 调研 | [37](37-pluginAndAgentResearch.md) | 存档 |
 | **插件** | [38](38-pluginSystem.md) · [开发 API](../pluginHookApi.md) · [开发者体验](../pluginDeveloperGuide.md) · [实施计划](../Plan/Plugin/PLUGIN-full-plan.md) | 开放可信 Mod、完整阶段内核、作者自选运行时、开发工具链、模块与 UI 贡献 |
-| **Agent** | [39](39-agentSystem.md) | M1–M6 后做；经 **MCP + `Server/Skill`**，可驱动第三方插件 |
+| **Agent** | [39](39-agentSystem.md) | M1–M6 后做；经 **MCP + `Skill`**，可驱动第三方插件 |
 
 当前迭代 **只推进 Charles 对等主路径**（代理 / 抓包 / 工具 / UI）+ **MCP / Skill / i18n 同步**。  
 插件系统已进入完整平台重构；Agent 仍按 39 的独立节奏实施，并继续复用 MCP。

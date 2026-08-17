@@ -11,7 +11,6 @@ import {
   packetFilterConfigurationSchema,
   mirrorConfigurationSchema,
   rewriteConfigurationSchema,
-  recordingRuleConfigurationSchema,
   throttlingConfigurationSchema,
   type BlockCookiesConfiguration,
   type BlockListConfiguration,
@@ -26,14 +25,12 @@ import {
   type PacketFilterConfiguration,
   type MirrorConfiguration,
   type RewriteConfiguration,
-  type RecordingRuleConfiguration,
   type ThrottlingConfiguration,
 } from "../api/protocol";
 import { maximumPacketFilterBytes } from "./packetFilterLimits";
 
 /** 可在设置对话框中编辑并提交的工具标识。 */
 export type EditableToolId =
-  | "recordingRules"
   | "packetFilters"
   | "blockList"
   | "noCaching"
@@ -49,7 +46,6 @@ export type EditableToolId =
 
 /** 所有工具的可编辑配置联合类型，确保前置校验和控制 API 使用同一对象形状。 */
 export type EditableToolConfiguration =
-  | RecordingRuleConfiguration
   | PacketFilterConfiguration
   | BlockCookiesConfiguration
   | BlockListConfiguration
@@ -137,9 +133,6 @@ function hasValidSchema(
   tool: EditableToolId,
   configuration: EditableToolConfiguration,
 ): boolean {
-  if (tool === "recordingRules") {
-    return recordingRuleConfigurationSchema.safeParse(configuration).success;
-  }
   if (tool === "packetFilters") {
     return packetFilterConfigurationSchema.safeParse(configuration).success;
   }
@@ -174,30 +167,6 @@ function hasValidSchema(
     return autoSaveConfigurationSchema.safeParse(configuration).success;
   }
   return throttlingConfigurationSchema.safeParse(configuration).success;
-}
-
-/** 验证录制规则标识、名称和必填条件；运行时会执行更严格的 CIDR 与端口语义校验。 */
-function validateRecordingRules(
-  configuration: RecordingRuleConfiguration,
-): ToolConfigurationValidationIssue | null {
-  const identifiers = new Set<string>();
-  for (const [setIndex, ruleSet] of configuration.ruleSets.entries()) {
-    if (ruleSet.name.trim() === "" || identifiers.has(ruleSet.id)) {
-      return { field: "setName", setIndex };
-    }
-    identifiers.add(ruleSet.id);
-    for (const [ruleIndex, rule] of ruleSet.rules.entries()) {
-      if (
-        identifiers.has(rule.id) ||
-        (rule.kind !== "match" && rule.value.trim() === "") ||
-        (rule.kind === "match" && rule.value !== "")
-      ) {
-        return { field: "rules", setIndex, ruleIndex };
-      }
-      identifiers.add(rule.id);
-    }
-  }
-  return null;
 }
 
 const packetBytePattern = /^(?:[0-9A-Fa-f]{2}|\?\?)(?:\s+(?:[0-9A-Fa-f]{2}|\?\?))*$/;
@@ -593,9 +562,7 @@ export function validateToolConfiguration(
   options: ToolConfigurationValidationOptions = {},
 ): ToolConfigurationValidationIssue | null {
   let issue: ToolConfigurationValidationIssue | null;
-  if (tool === "recordingRules") {
-    issue = validateRecordingRules(configuration as RecordingRuleConfiguration);
-  } else if (tool === "packetFilters") {
+  if (tool === "packetFilters") {
     issue = validatePacketFilters(configuration as PacketFilterConfiguration);
   } else if (tool === "blockList") {
     const blockListConfiguration = configuration as BlockListConfiguration;

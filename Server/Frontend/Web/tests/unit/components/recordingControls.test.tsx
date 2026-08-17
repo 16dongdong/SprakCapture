@@ -326,6 +326,9 @@ describe("录制工具栏与状态栏", () => {
     expect(
       screen.queryByRole("menuitem", { name: "设置" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "录制规则集" }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "设置" }));
     await waitFor(() =>

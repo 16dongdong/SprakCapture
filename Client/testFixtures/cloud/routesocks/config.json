@@ -1,0 +1,18 @@
+{
+    "listen_host":  "127.0.0.1",
+    "listen_port":  12345,
+    "socks5_host":  "192.168.1.10",
+    "socks5_port":  8787,
+    "socks5_username":  "",
+    "socks5_password":  "",
+    "socks5_require_auth":  true,
+    "socks5_allow_no_auth_fallback":  false,
+    "enable_keepalive":  true,
+    "connection_idle_timeout_sec":  120,
+    "connection_max_lifetime_sec":  0,
+    "dns_listen_host":  "127.0.0.1",
+    "dns_listen_port":  5353,
+    "fake_ip_pool_start":  "198.18.0.1",
+    "fake_ip_pool_end":  "198.19.255.254",
+    "fake_ip_ttl_sec":  300
+}

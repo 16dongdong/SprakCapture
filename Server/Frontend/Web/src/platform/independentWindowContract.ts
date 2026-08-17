@@ -11,6 +11,7 @@ import {
 
 /** 独立窗口支持的完整业务集合；每一种类型都必须映射到真实可操作页面。 */
 export type IndependentWindowRequest =
+  | { kind: "accountManagement" }
   | { kind: "settings"; section: SettingsSection }
   | { kind: "processManager" }
   | {
@@ -27,12 +28,12 @@ export type IndependentWindowRequest =
       transactionId: string;
       validatorId: ValidatorId;
     }
+  | { kind: "plugin"; pluginId: string; pluginName: string }
   | { kind: "pluginUninstall"; pluginId: string; pluginName: string }
   | { kind: "repeat"; transactionId: string; mode: "edit" | "advanced" }
   | { kind: "clearRecording"; transactionCount: number };
 
 const toolDialogIds: readonly ToolDialogId[] = [
-  "recordingRules",
   "packetFilters",
   "blockList",
   "noCaching",
@@ -149,6 +150,15 @@ export function createIndependentWindowTarget(
   let minHeight = 520;
 
   switch (request.kind) {
+    case "accountManagement":
+      routePath = "/window/account-management";
+      labelIdentity = "account-management";
+      title = "SOCKS5 管理";
+      width = 1180;
+      height = 780;
+      minWidth = 920;
+      minHeight = 620;
+      break;
     case "settings":
       routePath = `/window/settings/${request.section}`;
       labelIdentity = `settings-${request.section}`;
@@ -216,6 +226,15 @@ export function createIndependentWindowTarget(
       height = 380;
       minWidth = 520;
       minHeight = 320;
+      break;
+    case "plugin":
+      routePath = `/window/plugin/${encodeURIComponent(request.pluginId)}`;
+      labelIdentity = `plugin-${createWindowContextHash(request.pluginId)}`;
+      title = request.pluginName;
+      width = 960;
+      height = 720;
+      minWidth = 680;
+      minHeight = 480;
       break;
     case "pluginUninstall":
       parameters.set("pluginId", request.pluginId);

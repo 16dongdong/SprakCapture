@@ -26,13 +26,14 @@ use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
 use super::{
-    ApiError, ConfigurationUpdate, ControlState, ErrorCode, LocalizedApiError, ServiceState,
-    mcpControl::McpConfiguration, processIcon::extractProcessIcon,
+    ApiError, ConfigurationUpdate, ControlState, ErrorCode, EventMessage, LocalizedApiError,
+    ServiceState, mcpControl::McpConfiguration, processIcon::extractProcessIcon,
     protocolControl::PersistedProtocolConfiguration, toolControl::PersistedToolsConfiguration,
 };
 use crate::localization::RequestLocale;
 
 const applicationConfigurationFileName: &str = "configuration.json";
+const retiredRecordingRulesKey: &str = "recordingRules";
 
 /// 描述一个当前可选择的运行中进程；同一路径的多个实例保留各自 PID，便于界面展示实际运行状态。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -131,15 +132,14 @@ impl ProcessSelectionStore {
     /// 从数据目录加载进程选择；文件不存在表示首次运行，格式损坏或读取失败会阻止后端启动。
     pub(crate) fn load(dataDirectory: &Path) -> Result<Self, std::io::Error> {
         let filePath = dataDirectory.join(applicationConfigurationFileName);
-        let state = match fs::read(&filePath) {
-            Ok(bytes) => serde_json::from_slice::<PersistedApplicationConfiguration>(&bytes)
-                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?,
+        let (state, removedRetiredConfiguration) = match fs::read(&filePath) {
+            Ok(bytes) => decodeApplicationConfiguration(&bytes)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                PersistedApplicationConfiguration::default()
+                (PersistedApplicationConfiguration::default(), false)
             }
             Err(error) => return Err(error),
         };
-        Ok(Self {
+        let store = Self {
             filePath: Arc::new(filePath),
             iconCache: Arc::new(RwLock::new(BTreeMap::new())),
             state: Arc::new(RwLock::new(PersistedApplicationConfiguration {
@@ -153,7 +153,13 @@ impl ProcessSelectionStore {
                 mcp: state.mcp,
             })),
             updateLock: Arc::new(Mutex::new(())),
-        })
+        };
+        if removedRetiredConfiguration {
+            // 已删除工具的旧配置不能继续留在权威文件中，否则后续版本仍会携带不可达状态。
+            // 迁移只删除这个已知字段，其余未知字段继续由严格反序列化拒绝，避免损坏配置被静默吞掉。
+            store.write(&store.state.read().clone())?;
+        }
+        Ok(store)
     }
 
     /// 返回启动时使用的完整服务配置；缺少配置表示首次运行，应采用代码默认值。
@@ -376,6 +382,26 @@ impl ProcessSelectionStore {
     }
 }
 
+/// 解码统一配置并移除已经退役的录制规则字段；仅启动加载路径调用，成功后调用方立即原子写回清理结果。
+///
+/// 运行上下文：旧安装可能仍保存 `tools.recordingRules`，而当前工具模型已彻底删除该能力。
+/// 参数 `bytes` 是配置文件完整正文；JSON 损坏、其它未知字段或现有字段类型错误均返回 InvalidData。
+/// 失败语义：只有精确命中的退役字段会被删除，任何其它不兼容内容仍阻止服务启动。
+fn decodeApplicationConfiguration(
+    bytes: &[u8],
+) -> Result<(PersistedApplicationConfiguration, bool), std::io::Error> {
+    let mut document: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    let removedRetiredConfiguration = document
+        .get_mut("tools")
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|tools| tools.remove(retiredRecordingRulesKey))
+        .is_some();
+    let configuration = serde_json::from_value(document)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    Ok((configuration, removedRetiredConfiguration))
+}
+
 /// 以同目录临时文件替换权威配置；Windows 使用写穿透替换，Unix 同步父目录提交名称。
 #[cfg(windows)]
 fn replaceConfigurationFile(nextPath: &Path, destinationPath: &Path) -> Result<(), std::io::Error> {
@@ -466,10 +492,37 @@ impl ControlState {
                 ApiError::internal(ErrorCode::ProcessSelectionOperationFailed)
                     .withParam("detail", error.to_string())
             })?;
-            *self.processCaptureConfiguration.write().await = pendingConfiguration;
+        }
+        let socks5Configuration = self.configuration.read().await.clone();
+        let httpConfiguration = self.httpConfiguration.read().await.clone();
+        let multiAccountConfiguration = self.multiAccountConfiguration.read().await.clone();
+        let multiAccount = self
+            .accountService
+            .publicState(&multiAccountConfiguration)
+            .await;
+        let mut processCaptureGuard = self.processCaptureConfiguration.write().await;
+        *processCaptureGuard = pendingConfiguration.clone();
+        // 配置写锁释放前推进投影代际并发布对应载荷；并发快照只能读取提交前状态或重试后读取提交后状态。
+        self.publishProjectionRevisioned(|serverInstanceId, revision| {
+            EventMessage::Configuration {
+                serverInstanceId,
+                revision,
+                configuration: Box::new(super::PublicConfiguration::fromInternal(
+                    super::ConfigurationProjectionSource {
+                        socks5: &socks5Configuration,
+                        http: &httpConfiguration,
+                        processCapture: &pendingConfiguration,
+                        startServiceOnLaunch: self
+                            .startServiceOnLaunch
+                            .load(std::sync::atomic::Ordering::Acquire),
+                    },
+                    multiAccount,
+                )),
+            }
+        });
+        drop(processCaptureGuard);
+        if serviceState == ServiceState::Running {
             self.publishRuntimeViews().await;
-        } else {
-            *self.processCaptureConfiguration.write().await = pendingConfiguration;
         }
         Ok(self.processSelection.snapshot())
     }

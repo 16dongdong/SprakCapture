@@ -14,7 +14,7 @@
 - 完整 manifest 的严格结构模型，包括开放运行时、模块、34 个稳定阶段、动作、自由能力说明、匹配、作者运行说明、依赖和贡献点；插件作者可选择进程内 Native、工作进程、Sidecar 或 Wasm。
 - `ExtensionKernel` 的预编译匹配计划、稳定排序、用户覆盖、结构化修改链、失败策略、服务/录制代际和固定容量调用追踪；开放可信模式不执行能力授权、调用超时、事件队列、输出配额或自动熔断。
 - `ProcessExtensionRuntime` 已把 Python、TypeScript、Go 和任意独立程序接入 Sidecar/Native Worker JSONL；并发请求用 requestId 归并，宿主不施加超时、并发或输出限制。
-- `Server/PluginSDK/` 提供 C++、Rust、Go、Python、TypeScript 的函数式作者 API、示例、构建文件和契约测试。
+- `PluginSDK/` 提供 C++、Rust、Go、Python、TypeScript 的函数式作者 API、示例、构建文件和契约测试。
 - 宿主级 `extensionPlatform.json`，完整持久化启停、活动版本、模块顺序、订阅覆盖、失败策略、作者运行说明、配置 Schema 版本、配置正文和秘密引用；更新使用同步临时文件与原子替换。
 - 进程内 Native 完整 Mod 生产加载器，以及 SOCKS5 TCP/UDP、CONNECT 隧道的 `TcpChunk`、`UdpDatagram`、`ConnectionClosing` 阶段接线。
 - 有状态双向 `StreamTransformerSession`：两个方向独立半包缓冲，支持粘包、多帧输出、修改、扩长、丢弃、关闭、半关闭校验和 exactly-once 资源回收。
@@ -60,11 +60,11 @@
 
 ## 5. 基线证据
 
-- `Server/Backend/PluginHost/src/lib.rs`：legacy manifest、包、配置、生命周期与 C ABI。
-- `Server/Backend/HttpProxy/src/pipeline.rs`：当前结构化 HTTP 工具阶段。
-- `Server/Backend/Socks5/src/relay.rs`：TCP legacy 流回调接入。
-- `Server/Backend/Socks5/src/udpRelay.rs`：显式 SOCKS5 UDP legacy 回调接入。
-- `Server/Backend/src/controlApi/pluginControl.rs`：插件控制 API。
-- `Server/Frontend/Web/src/pages/pluginManagerPage.tsx`：当前管理页面。
+- `Backend/PluginHost/src/lib.rs`：legacy manifest、包、配置、生命周期与 C ABI。
+- `Backend/HttpProxy/src/pipeline.rs`：当前结构化 HTTP 工具阶段。
+- `Backend/Socks5/src/relay.rs`：TCP legacy 流回调接入。
+- `Backend/Socks5/src/udpRelay.rs`：显式 SOCKS5 UDP legacy 回调接入。
+- `Backend/src/controlApi/pluginControl.rs`：插件控制 API。
+- `Frontend/Web/src/pages/pluginManagerPage.tsx`：当前管理页面。
 
 迁移完成前，测试报告必须区分“legacy 流 Hook 通过”和“完整模块系统阶段通过”。

@@ -1,4 +1,4 @@
-﻿# 00 产品愿景
+# 00 产品愿景
 
 ## Charles 对照
 
@@ -20,7 +20,7 @@ Sprak Capture 对齐该产品形态，并保留已有的高性能 SOCKS5 能力�
 | 统一位置匹配 | 所有工具共用 `Location`（协议/主机/端口/路径通配） |
 | 固定工具流水线 | 请求/响应路径上顺序确定、可单独启停的工具集合 |
 | 权威快照控制面 | 延续 `proxyService` 控制契约：`revision`、camelCase API、完整快照 + 增量事件 |
-| 唯一 Web UI | `Server/Frontend/Web` 为唯一界面源，Desktop/浏览器共用 |
+| 唯一 Web UI | `Frontend/Web` 为唯一界面源，Desktop/浏览器共用 |
 | HTTPS MITM | 按主机表解密；根 CA 存安装目录 `data/certs`，叶证书按主机签发 |
 | 列表与正文分离 | 列表快照仅元数据；正文按需 API 拉取，支持 spill 与限额 |
 | 插件与模块生态（**基础已存在，完整平台重构中**） | **对外开放**：第三方开发者扩展全处理阶段、协议解码、改写、录制、命令与检查器 UI；见 [38](38-pluginSystem.md) |

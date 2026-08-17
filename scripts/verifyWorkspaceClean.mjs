@@ -8,8 +8,8 @@ const transientDirectories = [
   ".playwright-cli",
   "tmp",
   "output",
-  "Server/Frontend/Web/dist",
-  "Server/Frontend/Web/coverage",
+  "Frontend/Web/dist",
+  "Frontend/Web/coverage",
 ];
 const allowedTargetDirectories = new Set(["debug", "release"]);
 

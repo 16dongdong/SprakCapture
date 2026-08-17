@@ -65,4 +65,22 @@ describe("界面语言运行时", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("接收其他窗口写入的语言偏好并立即刷新当前窗口", async () => {
+    render(<LanguageSelector />);
+    window.localStorage.setItem(localeStorageKey, "en");
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: localeStorageKey,
+        newValue: "en",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(i18n.language).toBe("en");
+      expect(
+        screen.getByRole("combobox", { name: "Interface language" }),
+      ).toHaveValue("en");
+    });
+  });
 });

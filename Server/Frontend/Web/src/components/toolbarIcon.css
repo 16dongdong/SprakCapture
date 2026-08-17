@@ -1,17 +1,12 @@
 .toolbarBitmapIcon {
-  display: inline-block;
+  display: block;
   flex: 0 0 auto;
-  width: var(--toolbar-icon-size);
-  height: var(--toolbar-icon-size);
-  background-image: var(--toolbar-icon-source);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
   filter: saturate(0.92) contrast(1.04);
+  object-fit: contain;
   pointer-events: none;
   transform: translateZ(0);
   vertical-align: middle;
-  contain: strict;
+  user-select: none;
 }
 
 @media (prefers-color-scheme: dark) {

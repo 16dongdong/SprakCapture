@@ -15,7 +15,7 @@ const supportedLocales = [
   "ru",
 ];
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(scriptDirectory, "../../../..");
+const serverRoot = resolve(scriptDirectory, "../../..");
 
 /**
  * 读取并解析受版本控制的 UTF-8 目录文件；编码或语法错误直接携带路径终止检查。
@@ -140,20 +140,20 @@ async function checkCatalogFamily(
 const frontendKeyCount = await checkCatalogFamily(
   (locale) =>
     resolve(
-      repositoryRoot,
-      `Server/Frontend/Web/src/locales/${locale}/app.json`,
+      serverRoot,
+      `Frontend/Web/src/locales/${locale}/app.json`,
     ),
   /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g,
 );
 const backendKeyCount = await checkCatalogFamily(
   (locale) =>
-    resolve(repositoryRoot, `Server/Backend/locales/${locale}/errors.json`),
+    resolve(serverRoot, `Backend/locales/${locale}/errors.json`),
   /(?<!\{)\{([A-Za-z][A-Za-z0-9]*)\}(?!\})/g,
   ["detail"],
 );
 const mcpKeyCount = await checkCatalogFamily(
   (locale) =>
-    resolve(repositoryRoot, `Server/Mcp/locales/${locale}/messages.json`),
+    resolve(serverRoot, `Mcp/locales/${locale}/messages.json`),
   /(?<!\{)\{([A-Za-z][A-Za-z0-9]*)\}(?!\})/g,
   [],
   true,

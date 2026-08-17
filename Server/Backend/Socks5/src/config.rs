@@ -37,6 +37,7 @@ pub enum AuthenticationMode {
     NoAuth,
     UsernamePassword,
     Plugin,
+    AccountService,
 }
 
 /// 保存 SOCKS5 数据面配置；JSON 字段遵循前后端统一的 camelCase 契约。

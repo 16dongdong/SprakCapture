@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -9,7 +10,11 @@ import { useTranslation } from "react-i18next";
 
 import type { TransactionSummary } from "../api/protocol";
 import { useServiceStore } from "../state/serviceStore";
-import { TransactionInspector } from "./transactionInspector";
+import { useReportUiDataView } from "../state/uiContextReporter";
+import {
+  type InspectorView,
+  TransactionInspector,
+} from "./transactionInspector";
 import { TransactionNavigator } from "./transactionNavigator";
 import type { StreamPacketSelection } from "./streamPacketSelection";
 import type { ToolDialogId } from "./toolSettingsDialog";
@@ -64,6 +69,8 @@ export function ConnectionsWorkspace({
   >(null);
   const [selectedPacket, setSelectedPacket] =
     useState<StreamPacketSelection | null>(null);
+  const [inspectorView, setInspectorView] =
+    useState<InspectorView>("overview");
   const [selectedTransactionSnapshot, setSelectedTransactionSnapshot] =
     useState<TransactionSummary | null>(null);
   const selectedRecordingSessionIdRef = useRef<string | null>(null);
@@ -131,6 +138,25 @@ export function ConnectionsWorkspace({
     (selectedTransactionSnapshot?.transactionId === selectedTransactionId
       ? selectedTransactionSnapshot
       : null);
+  const reportedSelection = useMemo(() => {
+    if (selectedPacket !== null && selectedPacket.sequence !== null) {
+      return {
+        kind: "streamPacket" as const,
+        ids: [selectedPacket.transactionId],
+        side: selectedPacket.side,
+        sequence: selectedPacket.sequence,
+      };
+    }
+    return selectedTransactionId === null
+      ? null
+      : {
+          kind: "transaction" as const,
+          ids: [selectedTransactionId],
+          side: null,
+          sequence: null,
+        };
+  }, [selectedPacket, selectedTransactionId]);
+  useReportUiDataView(inspectorView, reportedSelection);
 
   /**
    * 选择方向或流片段时同时同步所属事务；包被滚动录制淘汰后的方向回退也复用此唯一状态入口。
@@ -229,6 +255,7 @@ export function ConnectionsWorkspace({
         onPointerDown={beginResize}
       />
       <TransactionInspector
+        onViewChange={setInspectorView}
         onPacketUnavailable={selectPacket}
         selectedPacket={selectedPacket}
         transaction={selectedTransaction}

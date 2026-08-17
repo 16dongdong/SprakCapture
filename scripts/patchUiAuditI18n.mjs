@@ -6,8 +6,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const localesDir = join(root, "Server/Frontend/Web/src/locales");
+const serverRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const localesDir = join(serverRoot, "Frontend/Web/src/locales");
 const locales = [
   "en",
   "zh-Hans",

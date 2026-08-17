@@ -53,5 +53,10 @@
   "error.pluginOperationFailed": "插件操作失败。",
   "error.invalidProcessSelectionRequest": "进程选择请求无效。",
   "error.processSelectionOperationFailed": "保存或应用进程选择失败：{{detail}}",
-  "error.configurationPersistenceFailed": "保存配置文件失败：{{detail}}"
+  "error.configurationPersistenceFailed": "保存配置文件失败：{{detail}}",
+  "error.clientPackageBusy": "已有客户端生成任务正在运行",
+  "error.clientPackageAuthenticationFailed": "SOCKS5 账号或密码无效。",
+  "error.clientPackageServiceUnavailable": "账号服务或远程规则服务暂不可用。",
+  "error.clientPackageOperationFailed": "客户端安装包操作失败",
+  "error.clientNodeUnavailable": "未找到可供 Android 设备访问的本机网络地址"
 }

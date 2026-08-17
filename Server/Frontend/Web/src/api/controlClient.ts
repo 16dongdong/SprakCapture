@@ -1,9 +1,6 @@
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
-import {
-  defaultControlBaseUrl,
-  resolveControlBaseUrl,
-} from "./controlEndpoint";
+import { resolveControlBaseUrl } from "./controlEndpoint";
 import {
   autoSaveConfigurationSchema,
   autoSavePublicStateSchema,
@@ -24,6 +21,9 @@ import {
   mapLocalConfigurationSchema,
   mapLocalImportResultSchema,
   mapRemoteConfigurationSchema,
+  managementApiKeyResponseSchema,
+  managementIdentitySchema,
+  managementSessionResponseSchema,
   maximumTransactionCollectionTokenCharacters,
   maximumPluginPackageBytes,
   noCachingConfigurationSchema,
@@ -38,13 +38,13 @@ import {
   extensionInvocationTraceSchema,
   processSelectionSnapshotSchema,
   processSelectionUpdateSchema,
+  publicMultiAccountConfigurationSchema,
   portForwardEntrySchema,
   protobufConfigurationSchema,
   protobufConfigurationUpdateSchema,
   protobufDescriptorUploadSchema,
   reverseProxyEntrySchema,
   recordingResponseSchema,
-  recordingRuleConfigurationSchema,
   recordingUpdateSchema,
   rewriteConfigurationSchema,
   serviceSnapshotSchema,
@@ -57,6 +57,7 @@ import {
   transactionDetailSchema,
   transactionPageSchema,
   toolsPublicStateSchema,
+  uiContextSnapshotSchema,
   validateConfigurationSchema,
   validateRequestSchema,
   validationReportSchema,
@@ -82,6 +83,10 @@ import {
   type MapLocalImportResult,
   type LocationPattern,
   type MapRemoteConfiguration,
+  type ManagementApiKeyResponse,
+  type ManagementIdentity,
+  type ManagementSessionResponse,
+  type MultiAccountPublicState,
   type NoCachingConfiguration,
   type PacketFilterConfiguration,
   type MirrorConfiguration,
@@ -99,7 +104,6 @@ import {
   type ProtobufConfigurationUpdate,
   type ProtobufDescriptorUpload,
   type RecordingResponse,
-  type RecordingRuleConfiguration,
   type RecordingUpdate,
   type RewriteConfiguration,
   type ReverseProxyEntry,
@@ -113,6 +117,8 @@ import {
   type TransactionDetail,
   type TransactionPage,
   type ToolsPublicState,
+  type UiContextSnapshot,
+  type UiContextUpdate,
   type ValidateConfiguration,
   type ValidateRequest,
   type ValidationReport,
@@ -192,6 +198,10 @@ export interface ClientCertificateImportSelection {
 }
 
 export interface ControlClient {
+  updateUiContext(
+    update: UiContextUpdate,
+    signal?: AbortSignal,
+  ): Promise<UiContextSnapshot>;
   getSnapshot(signal?: AbortSignal): Promise<ServiceSnapshot>;
   startService(signal?: AbortSignal): Promise<ServiceSnapshot>;
   stopService(signal?: AbortSignal): Promise<ServiceSnapshot>;
@@ -199,6 +209,15 @@ export interface ControlClient {
     update: ConfigurationUpdate,
     signal?: AbortSignal,
   ): Promise<ServiceSnapshot>;
+  getManagementIdentity(signal?: AbortSignal): Promise<ManagementIdentity>;
+  getMultiAccountState(signal?: AbortSignal): Promise<MultiAccountPublicState>;
+  updateManagementIdentity(
+    username: string,
+    password: string,
+    signal?: AbortSignal,
+  ): Promise<ManagementApiKeyResponse>;
+  getManagementApiKey(signal?: AbortSignal): Promise<ManagementApiKeyResponse>;
+  createManagementSession(signal?: AbortSignal): Promise<ManagementSessionResponse>;
   updateMcpConfiguration(
     configuration: McpConfiguration,
     signal?: AbortSignal,
@@ -349,10 +368,6 @@ export interface ControlClient {
     update: BlockListConfiguration,
     signal?: AbortSignal,
   ): Promise<ToolsPublicState>;
-  updateRecordingRules(
-    update: RecordingRuleConfiguration,
-    signal?: AbortSignal,
-  ): Promise<ToolsPublicState>;
   updatePacketFilters(
     update: PacketFilterConfiguration,
     signal?: AbortSignal,
@@ -438,11 +453,29 @@ export class HttpControlClient implements ControlClient {
    * 失败语义：baseUrl 含凭据、查询片段、首尾空白或不是绝对 HTTP(S) 地址时抛出 TypeError，拒绝生成不确定请求地址。
    */
   constructor(
-    baseUrl = defaultControlBaseUrl,
+    baseUrl?: string,
     requestFetch: typeof fetch = (input, init) => globalThis.fetch(input, init),
   ) {
     this.baseUrl = resolveControlBaseUrl(baseUrl);
     this.requestFetch = requestFetch;
+  }
+
+  /**
+   * 上报当前浏览器窗口正在展示的页面与稳定资源标识；响应是服务端确认后的活跃窗口集合。
+   *
+   * 运行上下文：UI 上下文提供器在路由、焦点、选择变化和心跳时调用；失败不会改变业务快照。
+   * 参数：update 必须携带窗口内单调 sequence；signal 用于页面卸载时取消在途请求。
+   * 失败语义：网络失败或协议漂移会显式拒绝 Promise，调用方只记录有界诊断并等待下次心跳。
+   */
+  updateUiContext(
+    update: UiContextUpdate,
+    signal?: AbortSignal,
+  ): Promise<UiContextSnapshot> {
+    return this.request(
+      "/api/v1/ui/context",
+      { method: "PUT", body: JSON.stringify(update), signal },
+      uiContextSnapshotSchema,
+    );
   }
 
   /** 热启停内置 MCP 并持久化端口；成功响应是包含真实监听结果的完整权威快照。 */
@@ -526,6 +559,59 @@ export class HttpControlClient implements ControlClient {
         signal,
       },
       serviceSnapshotSchema,
+    );
+  }
+
+  /** 读取脱敏管理员身份；响应不会携带密码或完整 API Key。 */
+  getManagementIdentity(signal?: AbortSignal): Promise<ManagementIdentity> {
+    return this.request(
+      "/api/v1/multiAccount/identity",
+      { method: "GET", signal },
+      managementIdentitySchema,
+    );
+  }
+
+  /** 读取账号服务的局部实时快照；高频概览刷新不触发完整控制快照重建。 */
+  getMultiAccountState(signal?: AbortSignal): Promise<MultiAccountPublicState> {
+    return this.request(
+      "/api/v1/multiAccount",
+      { method: "GET", signal },
+      publicMultiAccountConfigurationSchema,
+    );
+  }
+
+  /** 修改管理员凭据并接收本次直接响应中的新 Key；调用方必须限制其内存生命周期。 */
+  updateManagementIdentity(
+    username: string,
+    password: string,
+    signal?: AbortSignal,
+  ): Promise<ManagementApiKeyResponse> {
+    return this.request(
+      "/api/v1/multiAccount/identity",
+      {
+        method: "PUT",
+        body: JSON.stringify({ username, password }),
+        signal,
+      },
+      managementApiKeyResponseSchema,
+    );
+  }
+
+  /** 读取由当前管理员凭据确定性派生的完整 Key；请求不携带密码或其他秘密字段。 */
+  getManagementApiKey(signal?: AbortSignal): Promise<ManagementApiKeyResponse> {
+    return this.request(
+      "/api/v1/multiAccount/apiKey",
+      { method: "GET", signal },
+      managementApiKeyResponseSchema,
+    );
+  }
+
+  /** 创建仅用于同源账号管理 iframe 的一次性路径；响应不允许携带主机或端口。 */
+  createManagementSession(signal?: AbortSignal): Promise<ManagementSessionResponse> {
+    return this.request(
+      "/api/v1/multiAccount/managementSession",
+      { method: "POST", signal },
+      managementSessionResponseSchema,
     );
   }
 
@@ -1186,19 +1272,6 @@ export class HttpControlClient implements ControlClient {
     );
   }
 
-  /** 提交录制规则集；服务端校验完整集合后热替换匹配器并持久化配置文件。 */
-  updateRecordingRules(
-    update: RecordingRuleConfiguration,
-    signal?: AbortSignal,
-  ): Promise<ToolsPublicState> {
-    return this.updateTool(
-      "recordingRules",
-      update,
-      recordingRuleConfigurationSchema,
-      signal,
-    );
-  }
-
   /** 提交封包滤镜完整配置；服务端先持久化，再原子替换 TCP/UDP 最终写线规则。 */
   updatePacketFilters(
     update: PacketFilterConfiguration,
@@ -1743,7 +1816,7 @@ export class HttpControlClient implements ControlClient {
   }
 
   /**
-   * 发送控制请求并统一附加协商语言与 Accept；JSON 和二进制使用显式正文头，FormData 交给浏览器生成 boundary。
+   * 发送控制请求并统一附加同源管理 Cookie、协商语言与 Accept；JSON 和二进制使用显式正文头，FormData 交给浏览器生成 boundary。
    */
   private async fetchResponse(
     path: string,
@@ -1753,6 +1826,7 @@ export class HttpControlClient implements ControlClient {
     try {
       return await this.requestFetch(`${this.baseUrl}${path}`, {
         ...init,
+        credentials: init.credentials ?? "same-origin",
         headers: {
           Accept: accept,
           "Accept-Language": currentRequestLocale(),

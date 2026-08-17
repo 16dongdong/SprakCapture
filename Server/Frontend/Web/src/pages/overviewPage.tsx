@@ -1,25 +1,21 @@
-import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  CircleCheck,
-  CircleX,
-  Network,
-  Server,
-} from "lucide-react";
+import { Activity, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
-  formatByteCount,
-  presentConnectionState,
+  combineTrafficMetrics,
   presentProxyEntryPoints,
   presentServiceState,
 } from "../components/presentation";
 import { StatusActionButton } from "../components/statusActionButton";
+import { MultiAccountOverview } from "../components/multiAccountOverview";
+import { showIndependentWindow } from "../platform/independentWindowContract";
 import { useServiceStore } from "../state/serviceStore";
 
 /**
- * 渲染一个扁平指标单元；未知值保持短横线而不是伪造零。
+ * 渲染概览页统一规格的指标单元。
+ *
+ * 运行上下文：服务指标和账号指标共用该结构，参数提供本地化标签、已格式化值和对应图标。
+ * 失败语义：未知值由调用方明确传入短横线，本函数不推断或伪造业务数据。
  */
 function MetricCell({
   label,
@@ -44,37 +40,19 @@ function MetricCell({
  *
  * 运行上下文：主窗口概览路由消费共享服务快照，不直接管理任一监听器生命周期。
  * 参数：无；状态与动作均来自 ServiceStore。
- * 失败语义：快照暂不可用时显示连接状态和不可用入口；透明捕获只合并同语义字段，不把数据包数冒充连接数。
+ * 失败语义：快照暂不可用时显示不可用入口；多账号开启时只保留账号连接实时口径，避免重复连接数。
  */
 export function OverviewPage() {
   const { t } = useTranslation();
   const {
     snapshot,
-    controlConnection,
-    eventConnection,
-    connectionMessage,
     lastError,
+    activeAction,
+    getMultiAccountState,
   } = useServiceStore();
-  const connected = controlConnection === "connected";
-  const metrics = snapshot?.metrics;
-  const processCapture = snapshot?.processCapture;
-  const activeConnections =
-    metrics && processCapture
-      ? metrics.activeConnections + processCapture.trackedFlows
-      : null;
-  const acceptedConnections =
-    metrics && processCapture
-      ? metrics.acceptedConnections + processCapture.acceptedConnections
-      : null;
-  const bytesUp =
-    metrics && processCapture ? metrics.bytesUp + processCapture.bytesUp : null;
-  const bytesDown =
-    metrics && processCapture
-      ? metrics.bytesDown + processCapture.bytesDown
-      : null;
-  const sessionCount = snapshot
-    ? snapshot.sessions.length + snapshot.processCapture.acceptedConnections
-    : null;
+  const metrics = snapshot === null ? null : combineTrafficMetrics(snapshot);
+  const activeConnections = metrics?.activeConnections ?? null;
+  const acceptedConnections = metrics?.acceptedConnections ?? null;
   const servicePresentation =
     snapshot === null ? null : presentServiceState(snapshot.serviceState);
   const proxyEntryPoints =
@@ -84,14 +62,21 @@ export function OverviewPage() {
           snapshot.listeners,
           t("app.service.endpointUnavailable"),
         );
-  const listenerErrorCodes = snapshot
-    ? [snapshot.listeners.httpProxy.error?.code, snapshot.listeners.socks5.error?.code]
-    : [];
-  const diagnosticDetail = listenerErrorCodes.includes(
-    "processCaptureStartFailed",
-  )
-    ? t("page.overview.processCaptureStartFailed")
-    : lastError || connectionMessage;
+  const multiAccountEnabled =
+    snapshot?.configuration.multiAccount.enabled === true;
+
+  /**
+   * 在桌面端创建独立账号管理窗口；窗口内部通过一次性票据建立长期会话，
+   * 不占用工作台路由，也不会再次要求管理员输入账号密码。浏览器环境复用命名窗口。
+   * 创建失败仅记录错误，不伪造窗口已打开状态。
+   */
+  const openMultiAccountManagement = () => {
+    void showIndependentWindow({ kind: "accountManagement" }).catch(
+      (error: unknown) => {
+        console.error("打开账号管理窗口失败", error);
+      },
+    );
+  };
 
   return (
     <main className="pageShell overviewPage">
@@ -118,87 +103,46 @@ export function OverviewPage() {
           </div>
         </div>
         <div className="serviceControl">
-          <div className="connectionReadiness">
-            {connected ? (
-              <CircleCheck aria-hidden="true" size={18} />
-            ) : (
-              <CircleX aria-hidden="true" size={18} />
-            )}
-            <div>
-              <strong>
-                {connected
-                  ? t("page.overview.controlConnected")
-                  : t("page.overview.controlDisconnected")}
-              </strong>
-              <span>
-                {t("page.overview.eventStream")}
-                {eventConnection === "connected"
-                  ? t("app.connectionState.connected")
-                  : eventConnection === "connecting"
-                    ? t("app.connectionState.connecting")
-                    : t("app.connectionState.disconnected")}
-              </span>
-            </div>
-          </div>
           <StatusActionButton />
         </div>
       </section>
 
-      <section
-        className="metricsGrid"
-        aria-label={t("page.overview.metricsLabel")}
-      >
-        <MetricCell
-          label={t("page.overview.activeConnections")}
-          value={activeConnections === null ? "—" : String(activeConnections)}
-          icon={Activity}
+      {snapshot !== null && multiAccountEnabled ? (
+        <MultiAccountOverview
+          configuration={snapshot.configuration.multiAccount}
+          disabled={activeAction !== null}
+          acceptedConnections={acceptedConnections}
+          readState={getMultiAccountState}
+          onOpenManagement={openMultiAccountManagement}
         />
-        <MetricCell
-          label={t("page.overview.acceptedConnections")}
-          value={
-            acceptedConnections === null ? "—" : String(acceptedConnections)
-          }
-          icon={Network}
-        />
-        <MetricCell
-          label={t("page.overview.failedConnections")}
-          value={metrics ? String(metrics.failedConnections) : "—"}
-          icon={CircleX}
-        />
-        <MetricCell
-          label={t("page.overview.bytesUp")}
-          value={bytesUp === null ? "—" : formatByteCount(bytesUp)}
-          icon={ArrowUp}
-        />
-        <MetricCell
-          label={t("page.overview.bytesDown")}
-          value={bytesDown === null ? "—" : formatByteCount(bytesDown)}
-          icon={ArrowDown}
-        />
-        <MetricCell
-          label={t("page.overview.sessionCount")}
-          value={sessionCount === null ? "—" : String(sessionCount)}
-          icon={Server}
-        />
-      </section>
+      ) : null}
 
-      <section className="diagnosticPanel">
-        <h2>{t("page.overview.connectionStatus")}</h2>
-        <dl>
-          <div>
-            <dt>{t("page.overview.controlApi")}</dt>
-            <dd>{presentConnectionState(controlConnection)}</dd>
-          </div>
-          <div>
-            <dt>{t("page.overview.eventApi")}</dt>
-            <dd>{presentConnectionState(eventConnection)}</dd>
-          </div>
-          <div>
-            <dt>{t("page.overview.detail")}</dt>
-            <dd>{diagnosticDetail}</dd>
-          </div>
-        </dl>
-      </section>
+      {!multiAccountEnabled ? (
+        <section
+          className="metricsGrid"
+          aria-label={t("page.overview.metricsLabel")}
+        >
+          <MetricCell
+            label={t("page.overview.activeConnections")}
+            value={
+              activeConnections === null ? "—" : String(activeConnections)
+            }
+            icon={Activity}
+          />
+          <MetricCell
+            label={t("page.overview.acceptedConnections")}
+            value={
+              acceptedConnections === null ? "—" : String(acceptedConnections)
+            }
+            icon={Network}
+          />
+        </section>
+      ) : null}
+      {lastError ? (
+        <p className="inlineError" role="alert">
+          {lastError}
+        </p>
+      ) : null}
     </main>
   );
 }

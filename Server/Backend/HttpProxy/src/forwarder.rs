@@ -9,8 +9,8 @@ use std::{
 
 use bytes::Bytes;
 use capture_core::{
-    BeginTransaction, BodyWrite, CaptureError, RecordingRuleAction, RecordingSession,
-    TransactionProtocol, currentTimeMilliseconds,
+    BeginTransaction, BodyWrite, CaptureError, RecordingSession, TransactionProtocol,
+    currentTimeMilliseconds,
 };
 use http::{HeaderMap, HeaderValue, Method, Response, StatusCode, Version};
 use http_body_util::BodyExt;
@@ -504,6 +504,9 @@ fn reversePathAndQuery(uri: &http::Uri, stripPathPrefix: &str) -> Option<String>
 }
 
 /// 建立 CONNECT 上游后才返回 200，并在独立受跟踪任务中执行双向拷贝。
+///
+/// 运行上下文：请求 authority 已严格解析；自环、取消和上游连接失败都在响应前发生。
+/// 失败语义：只要目标可确定，就先把稳定错误码写入事务再返回代理错误响应，避免失败只在客户端可见。
 async fn forwardConnect(
     mut request: Request<Incoming>,
     clientAddress: SocketAddr,
@@ -514,6 +517,13 @@ async fn forwardConnect(
         Err(failure) => return failureResponse(failure),
     };
     if targetsProxyListener(&target.host, target.port, &context.config) {
+        recordConnectFailure(
+            &context,
+            &target,
+            clientAddress,
+            RequestFailure::LoopDetected,
+        )
+        .await;
         return failureResponse(RequestFailure::LoopDetected);
     }
     if context.ssl.shouldIntercept(&target.location) {
@@ -529,8 +539,6 @@ async fn forwardConnect(
         contentType: String::new(),
         startAtMilliseconds: currentTimeMilliseconds(),
     };
-    let rejectConnection =
-        context.capture.recordingDecision(&captureInput) == RecordingRuleAction::Reject;
     let mut capture = beginCapture(&context.capture, captureInput).await;
     if let Some(transaction) = capture.take() {
         let headers = captureHeaders(request.headers());
@@ -544,29 +552,6 @@ async fn forwardConnect(
             transaction.storeRequestHeaders(headers, headerBytes).await
         })
         .await;
-    }
-
-    // CONNECT 在明文 HTTP 流水线建立前就会转为字节隧道，因此必须在出站建连前单独执行
-    // 同一录制规则决策；阻断事务仍完整可见，但不会向目标服务器发起连接。
-    if rejectConnection {
-        if let Some(transaction) = capture.take()
-            && let Err(error) = transaction
-                .completeBlocked(
-                    BodyWrite {
-                        bytes: b"REJECT".to_vec(),
-                        originalBytes: 6,
-                        contentType: "text/plain; charset=utf-8".to_owned(),
-                        encoding: "identity".to_owned(),
-                    },
-                    StatusCode::FORBIDDEN.as_u16(),
-                )
-                .await
-        {
-            logCaptureError(&error);
-        }
-        let mut response = Response::new(bodyFromBytes(Bytes::from_static(b"REJECT")));
-        *response.status_mut() = StatusCode::FORBIDDEN;
-        return response;
     }
 
     let upstream = tokio::select! {
@@ -765,6 +750,9 @@ where
 }
 
 /// 将命中规则的 CONNECT 升级为下游 TLS 服务，并把解密后的每条 HTTP/1.1 消息送入统一转发链。
+///
+/// 运行上下文：目标已解析并命中 SSL 规则；上游探针、Hyper 升级与下游握手依次建立边界。
+/// 失败语义：每个握手前失败都记录结构化 CONNECT 终态，异步升级后的失败使用同一入口，禁止静默隐藏。
 async fn forwardInterceptedConnect(
     mut request: Request<Incoming>,
     clientAddress: SocketAddr,
@@ -774,6 +762,12 @@ async fn forwardInterceptedConnect(
     let upstreamProbe = tokio::select! {
         biased;
         () = context.cancellation.cancelled() => {
+            recordConnectFailure(
+                &context,
+                &target,
+                clientAddress,
+                RequestFailure::Cancelled,
+            ).await;
             return failureResponse(RequestFailure::Cancelled);
         }
         result = connectTcpTarget(&context, &target.host, target.port) => result,
@@ -781,13 +775,38 @@ async fn forwardInterceptedConnect(
     let upstreamProbe = match upstreamProbe {
         Ok(stream) => stream,
         Err(transport_core::OutboundConnectError::Timeout) => {
+            recordConnectFailure(
+                &context,
+                &target,
+                clientAddress,
+                RequestFailure::UpstreamTimeout,
+            )
+            .await;
             return failureResponse(RequestFailure::UpstreamTimeout);
         }
-        Err(_) => return failureResponse(RequestFailure::UpstreamUnavailable),
+        Err(_) => {
+            recordConnectFailure(
+                &context,
+                &target,
+                clientAddress,
+                RequestFailure::UpstreamUnavailable,
+            )
+            .await;
+            return failureResponse(RequestFailure::UpstreamUnavailable);
+        }
     };
     let tlsConfiguration = match context.ssl.downstreamServerConfiguration(&target.host) {
         Ok(configuration) => configuration,
-        Err(_) => return failureResponse(RequestFailure::DownstreamTlsHandshake),
+        Err(_) => {
+            recordConnectFailure(
+                &context,
+                &target,
+                clientAddress,
+                RequestFailure::DownstreamTlsHandshake,
+            )
+            .await;
+            return failureResponse(RequestFailure::DownstreamTlsHandshake);
+        }
     };
     let upgrade = hyper::upgrade::on(&mut request);
     let taskContext = context.clone();
@@ -800,7 +819,7 @@ async fn forwardInterceptedConnect(
         let upgraded = match upgraded {
             Ok(upgraded) => upgraded,
             Err(_) => {
-                recordTlsFailure(
+                recordConnectFailure(
                     &taskContext,
                     &target,
                     clientAddress,
@@ -826,7 +845,7 @@ async fn forwardInterceptedConnect(
             }
             Ok(Err(_)) | Err(_) => {
                 taskContext.ssl.recordHandshakeFailure();
-                recordTlsFailure(
+                recordConnectFailure(
                     &taskContext,
                     &target,
                     clientAddress,
@@ -916,8 +935,11 @@ async fn connectTcpTarget(
     context.outbound.connect(&connectHost, port).await
 }
 
-/// 为升级或 TLS 握手失败建立一条可见终态；成功路径只展示解密后的 HTTPS 请求。
-async fn recordTlsFailure(
+/// 为 CONNECT 在请求事务形成前的失败建立可见终态；成功路径仍只展示解密后的 HTTPS 请求或真实隧道。
+///
+/// 运行上下文：目标 authority 已完成严格解析，但失败可能发生在循环检查、上游探针、升级或下游 TLS 握手阶段。
+/// 失败语义：录制暂停、并发清空或录制写入错误不得改变发给代理客户端的原始失败响应。
+async fn recordConnectFailure(
     context: &ProxyContext,
     target: &ConnectTarget,
     clientAddress: SocketAddr,

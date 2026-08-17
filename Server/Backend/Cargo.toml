@@ -24,15 +24,18 @@ plugin-host = { path = "PluginHost" }
 process-capture-core = { path = "ProcessCapture" }
 prost = "0.13"
 prost-reflect = { version = "0.14", features = ["serde"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+rand = "0.9"
+sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.37"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.7"
+tokio-util = { version = "0.7", features = ["io"] }
 tower-http = { version = "0.6", features = ["cors"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+zeroize = "1"
 zstd = "0.13"
 capture-core = { path = "Capture" }
 capture-mcp = { path = "../Mcp" }

@@ -195,7 +195,6 @@ async fn toolsApiPublishesSnapshotAndWebSocketEvent() {
     assert_eq!(
         updateResponse["pipelineOrder"],
         json!([
-            "recordingRules",
             "dnsSpoofing",
             "blockList",
             "noCaching",
@@ -210,6 +209,16 @@ async fn toolsApiPublishesSnapshotAndWebSocketEvent() {
             "packetFilters"
         ])
     );
+    assert!(updateResponse.get("recordingRules").is_none());
+    // 已删除工具既不能出现在能力快照，也不能继续接受旧控制端点；返回 404 可阻止旧客户端误以为更新成功。
+    let (retiredToolStatus, _) = requestJson(
+        router.clone(),
+        Method::GET,
+        "/api/v1/tools/recordingRules",
+        json!({}),
+    )
+    .await;
+    assert_eq!(retiredToolStatus, StatusCode::NOT_FOUND);
 
     // 工具顺序同时承担控制面能力清单，逐项读取可阻止未实现槽位再次成为虚假 UI 入口。
     for toolId in updateResponse["pipelineOrder"]

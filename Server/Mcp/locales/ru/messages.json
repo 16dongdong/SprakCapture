@@ -1,6 +1,7 @@
 {
   "mcp.server.instructions": "Управляет локальным API Sprak Capture с теми же возможностями, что и интерфейс.",
   "mcp.tool.serviceGetSnapshot.description": "Получает авторитетный снимок состояния службы Sprak Capture.",
+  "mcp.tool.uiGetContext.description": "Получает текущий видимый интерфейс Sprak Capture и выбранные для просмотра данные.",
   "mcp.tool.serviceStart.description": "Запускает службу данных Sprak Capture.",
   "mcp.tool.serviceStop.description": "Останавливает службу данных Sprak Capture.",
   "mcp.tool.configGet.description": "Получает общедоступную конфигурацию службы Sprak Capture.",
@@ -67,5 +68,6 @@
   "mcp.tool.transactionRepeatEdited.description": "Повторить записанную HTTP-транзакцию с изменёнными полями запроса.",
   "mcp.tool.transactionRepeatAdvanced.description": "Запустить ограниченную расширенную задачу повторов после явного подтверждения.",
   "mcp.tool.pluginList.description": "Перечисляет обнаруженные плагины.",
-  "mcp.tool.pluginSetEnabled.description": "Включает или отключает один плагин."
+  "mcp.tool.pluginSetEnabled.description": "Включает или отключает один плагин.",
+  "mcp.tool.clientPackageGet.description": "Get the Android client package build state and recent signed artifacts."
 }

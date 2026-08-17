@@ -1,0 +1,13 @@
+[RoutingRule]
+
+[GRoutingRule]
+DOMAIN,example.com,PROXY
+DOMAIN,example.org,DIRECT
+DOMAIN,iana.org,REJECT
+FINAL,DIRECT
+
+[proxy_app]
+
+[DNS]
+PRIMARY,223.5.5.5
+SECONDARY,1.1.1.1

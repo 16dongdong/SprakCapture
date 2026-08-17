@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "Server/AccountService",
     "Server/Backend",
     "Server/Backend/Capture",
     "Server/Backend/HttpProxy",
@@ -10,6 +11,7 @@ members = [
     "Server/Backend/Socks5",
     "Server/Backend/Transport",
     "Server/Cli",
+    "Server/ClientPackager",
     "Server/Mcp",
     "Server/Frontend/Desktop/src-tauri",
 ]
@@ -19,3 +21,8 @@ codegen-units = 1
 lto = "thin"
 panic = "abort"
 strip = "symbols"
+
+[profile.test]
+# Windows 工作区包含大量集成测试二进制；禁用测试调试符号可避免 MSVC PDB 达到格式上限，
+# 同时显著降低系统临时目录占用，不改变断言、回溯或发布产物语义。
+debug = 0

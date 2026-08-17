@@ -1,5 +1,5 @@
 import { Save, Settings2, ShieldCheck } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 
@@ -14,11 +14,13 @@ import {
 } from "../api/protocol";
 import { useServiceStore } from "../state/serviceStore";
 import { LanguageSelector } from "../components/languageSelector";
+import { MultiAccountSettings } from "../components/multiAccountSettings";
 
 /** 服务设置页内可切换的二级区域。 */
 export type SettingsSection =
   | "interface"
   | "listener"
+  | "multiAccount"
   | "upstreamProxy"
   | "capacity"
   | "mcp";
@@ -36,6 +38,7 @@ interface SettingsDraft extends Omit<
 const settingsSections = [
   { value: "interface", labelKey: "app.language.label" },
   { value: "listener", labelKey: "page.settings.listenGroup" },
+  { value: "multiAccount", labelKey: "page.settings.multiAccountGroup" },
   { value: "upstreamProxy", labelKey: "page.settings.upstreamProxyGroup" },
   { value: "capacity", labelKey: "page.settings.capacityGroup" },
   { value: "mcp", labelKey: "page.settings.mcpGroup" },
@@ -109,16 +112,41 @@ export function SettingsPage({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { section } = useParams<{ section?: string }>();
-  const { snapshot, actionPending, updateConfiguration, updateMcpConfiguration } = useServiceStore();
+  const {
+    snapshot,
+    actionPending,
+    lastError,
+    updateConfiguration,
+    updateMcpConfiguration,
+    getManagementIdentity,
+    updateManagementIdentity,
+    getManagementApiKey,
+  } = useServiceStore();
   const configuration = snapshot?.configuration ?? null;
-  const [draft, setDraft] = useState<SettingsDraft | null>(
+  const [draft, setDraftState] = useState<SettingsDraft | null>(
     configuration === null ? null : createDraft(configuration),
   );
+  const draftDirty = useRef(false);
   const activeSection = isSettingsSection(section) ? section : "interface";
 
   useEffect(() => {
-    setDraft(configuration === null ? null : createDraft(configuration));
+    if (draftDirty.current) {
+      return;
+    }
+    setDraftState(configuration === null ? null : createDraft(configuration));
   }, [configuration]);
+
+  /**
+   * 写入用户正在编辑的设置草稿并锁定其编辑代次。
+   *
+   * 运行上下文：控制快照会因指标和连接事件持续刷新；一旦用户修改任意字段，后续快照
+   * 只能更新只读状态，不能覆盖尚未提交的输入。参数为完整设置草稿，本地状态更新不产生
+   * 失败返回；提交或关闭窗口会结束该草稿代次。
+   */
+  const setDraft = (nextDraft: SettingsDraft) => {
+    draftDirty.current = true;
+    setDraftState(nextDraft);
+  };
 
   const restartRequired = snapshot?.serviceState !== "stopped";
   const connectionLimit =
@@ -143,7 +171,7 @@ export function SettingsPage({
    * 参数：event 为表单提交事件。
    * 失败语义：草稿或快照缺失、正在提交时不产生控制请求；服务运行时由控制面强制断连后重启。
    */
-  const submitSettings = (event: FormEvent<HTMLFormElement>) => {
+  const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (actionPending) {
       return;
@@ -152,6 +180,7 @@ export function SettingsPage({
       return;
     }
     const update: ConfigurationUpdate = {
+      startServiceOnLaunch: draft.startServiceOnLaunch,
       listenHost: draft.listenHost,
       listenPort: draft.listenPort,
       authenticationMode: draft.authenticationMode,
@@ -185,6 +214,11 @@ export function SettingsPage({
         processIds: draft.processCapture.processIds,
         proxyPort: draft.listenPort,
       },
+      multiAccount: {
+        enabled: draft.multiAccount.enabled,
+        remoteHost: draft.multiAccount.remoteHost,
+        remotePort: draft.multiAccount.remotePort,
+      },
       credentials:
         draft.authenticationMode === "password" &&
         draft.username &&
@@ -192,7 +226,11 @@ export function SettingsPage({
           ? { username: draft.username, password: draft.password }
           : null,
     };
-    void updateConfiguration(update);
+    // 只有服务端确认提交后才释放草稿。旧实现在请求发出前解锁，
+    // 任一旧快照或请求失败都会把用户刚打开的开关立即关闭。
+    if (await updateConfiguration(update)) {
+      draftDirty.current = false;
+    }
   };
 
   const activeLabelKey = settingsSections.find(
@@ -203,6 +241,7 @@ export function SettingsPage({
   const sectionDescriptionKeys: Record<SettingsSection, string> = {
     interface: "page.settings.descriptionInterface",
     listener: "page.settings.descriptionListener",
+    multiAccount: "page.settings.descriptionMultiAccount",
     upstreamProxy: "page.settings.descriptionUpstreamProxy",
     capacity: "page.settings.descriptionCapacity",
     mcp: "page.settings.descriptionMcp",
@@ -298,6 +337,24 @@ export function SettingsPage({
             <div className="settingsListenerGroups" aria-label={activeLabel}>
               <fieldset disabled={actionPending}>
                 <legend>{t("page.settings.socksGroup")}</legend>
+                <label className="settingsCheckboxRow">
+                  <input
+                    checked={draft.startServiceOnLaunch}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        startServiceOnLaunch: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    <strong>{t("page.settings.startServiceOnLaunch")}</strong>
+                    <small>
+                      {t("page.settings.startServiceOnLaunchHint")}
+                    </small>
+                  </span>
+                </label>
                 <label>
                   <span>{t("page.settings.listenHost")}</span>
                   <input
@@ -335,55 +392,80 @@ export function SettingsPage({
                   />
                 </label>
               </fieldset>
-            <fieldset aria-label={activeLabel} disabled={actionPending}>
-              <label>
-                <span>{t("page.settings.authenticationMode")}</span>
-                <select
-                  value={draft.authenticationMode}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      authenticationMode: event.target.value as
-                        "none" | "password" | "plugin",
-                    })
-                  }
-                >
-                  <option value="none">
-                    {t("page.settings.authenticationNone")}
-                  </option>
-                  <option value="password">
-                    {t("page.settings.authenticationPassword")}
-                  </option>
-                  <option value="plugin">
-                    {t("page.settings.authenticationPlugin")}
-                  </option>
-                </select>
-              </label>
-              <label>
-                <span>{t("page.settings.username")}</span>
-                <input
-                  autoComplete="username"
-                  disabled={draft.authenticationMode !== "password"}
-                  value={draft.username}
-                  onChange={(event) =>
-                    setDraft({ ...draft, username: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span>{t("page.settings.newPassword")}</span>
-                <input
-                  autoComplete="new-password"
-                  disabled={draft.authenticationMode !== "password"}
-                  type="password"
-                  value={draft.password}
-                  onChange={(event) =>
-                    setDraft({ ...draft, password: event.target.value })
-                  }
-                />
-              </label>
-            </fieldset>
+              {!draft.multiAccount.enabled ? (
+                <fieldset aria-label={activeLabel} disabled={actionPending}>
+                  <label>
+                    <span>{t("page.settings.authenticationMode")}</span>
+                    <select
+                      value={draft.authenticationMode}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          authenticationMode: event.target.value as
+                            | "none"
+                            | "password"
+                            | "plugin",
+                        })
+                      }
+                    >
+                      <option value="none">
+                        {t("page.settings.authenticationNone")}
+                      </option>
+                      <option value="password">
+                        {t("page.settings.authenticationPassword")}
+                      </option>
+                      <option value="plugin">
+                        {t("page.settings.authenticationPlugin")}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("page.settings.username")}</span>
+                    <input
+                      autoComplete="username"
+                      disabled={draft.authenticationMode !== "password"}
+                      value={draft.username}
+                      onChange={(event) =>
+                        setDraft({ ...draft, username: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{t("page.settings.newPassword")}</span>
+                    <input
+                      autoComplete="new-password"
+                      disabled={draft.authenticationMode !== "password"}
+                      type="password"
+                      value={draft.password}
+                      onChange={(event) =>
+                        setDraft({ ...draft, password: event.target.value })
+                      }
+                    />
+                  </label>
+                </fieldset>
+              ) : (
+                <div className="settingsUnavailable">
+                  <ShieldCheck aria-hidden="true" size={24} />
+                  <strong>
+                    {t("page.settings.multiAccountOverridesAuthentication")}
+                  </strong>
+                  <span>
+                    {t("page.settings.multiAccountOverridesAuthenticationHint")}
+                  </span>
+                </div>
+              )}
             </div>
+          ) : activeSection === "multiAccount" ? (
+            <MultiAccountSettings
+              configuration={draft.multiAccount}
+              disabled={actionPending}
+              getApiKey={getManagementApiKey}
+              getIdentity={getManagementIdentity}
+              updateIdentity={updateManagementIdentity}
+              onConfigurationChange={(multiAccount) =>
+                setDraft({ ...draft, multiAccount })
+              }
+            />
           ) : activeSection === "upstreamProxy" ? (
             <div className="settingsListenerGroups" aria-label={activeLabel}>
               <fieldset disabled={actionPending}>
@@ -632,6 +714,9 @@ export function SettingsPage({
             <p className="settingsRestartHint">
               {t("page.settings.restartHint")}
             </p>
+          )}
+          {lastError !== null && activeSection !== "interface" && (
+            <p className="settingsError" role="alert">{lastError}</p>
           )}
         </div>
         <footer className="settingsActions">

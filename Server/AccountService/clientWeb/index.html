@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>下载代理客户端</title>
+  <link rel="stylesheet" href="/client/styles.css">
+  <script src="/client/app.js" defer></script>
+</head>
+<body>
+  <main class="downloadCard">
+    <div class="brandMark" aria-hidden="true">S</div>
+    <div>
+      <p class="eyebrow">Android 客户端</p>
+      <h1>下载代理客户端</h1>
+      <p class="description">输入 SOCKS5 账号和密码，服务将为本次下载生成专属连接配置的新安装包。</p>
+    </div>
+    <form id="downloadForm">
+      <div class="fieldGrid">
+        <label>SOCKS5 账号<input id="username" name="username" autocomplete="username" required maxlength="255"></label>
+        <label>SOCKS5 密码<input id="password" name="password" type="password" autocomplete="current-password" required maxlength="255"></label>
+        <label>Android 包名（可选）<input id="applicationId" name="applicationId" autocomplete="off" maxlength="127" placeholder="例如 com.example.client；留空随机"></label>
+        <label>软件名（可选）<input id="applicationName" name="applicationName" autocomplete="off" maxlength="32" placeholder="留空生成 3–6 位英文名"></label>
+      </div>
+      <label>应用图标（可选）
+        <input id="applicationIcon" name="applicationIcon" type="file" accept="image/png,image/jpeg,image/webp">
+        <span class="fieldHint">支持 PNG、JPEG、WebP，最大 1 MiB；留空使用默认图标。</span>
+      </label>
+      <button id="downloadButton" type="submit">下载代理客户端</button>
+      <p id="downloadStatus" class="status" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+</body>
+</html>

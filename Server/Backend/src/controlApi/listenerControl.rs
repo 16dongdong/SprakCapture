@@ -10,9 +10,11 @@ use http_proxy_core::{
 };
 
 use super::{
-    ApiError, ControlSnapshot, ControlState, ErrorCode, LocalizedApiError, PublicConfiguration,
+    ApiError, ControlSnapshot, ControlState, ErrorCode, LocalizedApiError,
+    ManagedHttpProxyConfiguration, MultiAccountConfiguration,
 };
 use crate::localization::RequestLocale;
+use socks5_core::Socks5Config;
 
 /// 返回规则配置与当前实际绑定；禁用或停止时 bindings 为空，调用方不能从配置端口推断运行状态。
 #[derive(Clone, Debug, serde::Serialize)]
@@ -68,14 +70,12 @@ impl ControlState {
         let _operationGuard = self.serviceOperationLock.lock().await;
         let serviceConfiguration = self.configuration.read().await.clone();
         let httpConfiguration = self.httpConfiguration.read().await.clone();
-        let processCaptureConfiguration = self.processCaptureConfiguration.read().await.clone();
+        let multiAccountConfiguration = self.multiAccountConfiguration.read().await.clone();
         validateAuxiliaryListenerConfiguration(
             &configuration,
-            &PublicConfiguration::fromInternal(
-                &serviceConfiguration,
-                &httpConfiguration,
-                &processCaptureConfiguration,
-            ),
+            &serviceConfiguration,
+            &httpConfiguration,
+            &multiAccountConfiguration,
         )?;
         let restartRequired = self.service.lock().await.state != super::ServiceState::Stopped;
         if restartRequired {
@@ -102,30 +102,60 @@ impl ControlState {
 }
 
 /// 校验辅助监听配置和 SOCKS5/HTTP 正向代理端口不会重叠；任何 unspecified 地址均覆盖同端口全部本机地址。
-fn validateAuxiliaryListenerConfiguration(
+pub(super) fn validateAuxiliaryListenerConfiguration(
     configuration: &AuxiliaryListenerConfiguration,
-    serviceConfiguration: &PublicConfiguration,
+    serviceConfiguration: &Socks5Config,
+    httpConfiguration: &ManagedHttpProxyConfiguration,
+    multiAccountConfiguration: &MultiAccountConfiguration,
 ) -> Result<(), ApiError> {
     configuration
         .validate()
         .map_err(|_| ApiError::badRequest(ErrorCode::InvalidConfiguration))?;
-    let socksAddress = serviceConfiguration
-        .listenHost
-        .parse::<std::net::IpAddr>()
-        .map_err(|_| ApiError::badRequest(ErrorCode::InvalidConfiguration))?;
-    let httpAddress = serviceConfiguration
-        .httpProxy
-        .listenHost
-        .parse::<std::net::IpAddr>()
-        .map_err(|_| ApiError::badRequest(ErrorCode::InvalidConfiguration))?;
-    let protected = [
-        (socksAddress, serviceConfiguration.listenPort, true),
-        (
-            httpAddress,
-            serviceConfiguration.httpProxy.listenPort,
-            serviceConfiguration.httpProxy.enabled,
-        ),
-    ];
+    let managementAddress = multiAccountConfiguration
+        .publicAddress()
+        .map_err(|detail| {
+            ApiError::badRequest(ErrorCode::InvalidConfiguration).withParam("detail", detail)
+        })?;
+    let mut protected = vec![(
+        serviceConfiguration.listenHost,
+        serviceConfiguration.listenPort,
+        true,
+    )];
+    let httpEndpoint = (
+        httpConfiguration.configuration.listenHost,
+        httpConfiguration.configuration.listenPort,
+    );
+    // 当前融合监听让 HTTP 与 SOCKS5 共享同一 socket；只有未来恢复独立 HTTP 端口时才追加第二个保护端点。
+    if httpConfiguration.enabled
+        && httpEndpoint
+            != (
+                serviceConfiguration.listenHost,
+                serviceConfiguration.listenPort,
+            )
+    {
+        protected.push((httpEndpoint.0, httpEndpoint.1, true));
+    }
+    protected.push((
+        managementAddress.ip(),
+        managementAddress.port(),
+        multiAccountConfiguration.enabled,
+    ));
+    // 主监听、独立 HTTP 监听与账号管理端口同属一个进程树；候选配置写盘前先拒绝任意地址覆盖关系。
+    for (index, (leftHost, leftPort, leftEnabled)) in protected.iter().enumerate() {
+        if !leftEnabled {
+            continue;
+        }
+        if protected[index + 1..]
+            .iter()
+            .any(|(rightHost, rightPort, rightEnabled)| {
+                *rightEnabled && leftPort == rightPort && addressesOverlap(*leftHost, *rightHost)
+            })
+        {
+            return Err(ApiError::badRequest(
+                ErrorCode::ListenerConfigurationConflict,
+            ));
+        }
+    }
     let conflicts = configuration
         .reverseProxies
         .iter()
@@ -143,11 +173,7 @@ fn validateAuxiliaryListenerConfiguration(
         .into_iter()
         .any(|address| {
             protected.iter().any(|(host, port, enabled)| {
-                *enabled
-                    && *port == address.port()
-                    && (*host == address.ip()
-                        || host.is_unspecified()
-                        || address.ip().is_unspecified())
+                *enabled && *port == address.port() && addressesOverlap(*host, address.ip())
             })
         });
     if conflicts {
@@ -156,6 +182,12 @@ fn validateAuxiliaryListenerConfiguration(
         ));
     }
     Ok(())
+}
+
+/// 判断两个本机监听地址是否会争用同一端口；任一 unspecified 地址都覆盖同协议族的具体地址。
+fn addressesOverlap(left: std::net::IpAddr, right: std::net::IpAddr) -> bool {
+    // IPv6 wildcard 是否同时接受 IPv4 由平台 socket 选项决定；配置阶段保守拒绝可避免部署机器差异。
+    left == right || left.is_unspecified() || right.is_unspecified()
 }
 
 /// 将辅助监听规则端点附加到统一控制路由；每个集合独立读取与替换，避免客户端重复发送另一类规则。
@@ -212,3 +244,7 @@ async fn updatePortForwards(
         .map(Json)
         .map_err(|error| error.withLocale(locale))
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/controlApi/listenerControlTests.rs"]
+mod tests;

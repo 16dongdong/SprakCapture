@@ -793,166 +793,6 @@
   border-radius: 5px;
 }
 
-.recordingRulesEditor {
-  display: grid;
-  gap: 12px;
-  min-height: 0;
-}
-
-.recordingRulesSummary,
-.recordingRuleSet > header,
-.recordingRuleRow,
-.recordingRuleActions,
-.recordingRuleDialog footer {
-  align-items: center;
-  display: flex;
-}
-
-.recordingRulesSummary {
-  gap: 12px;
-  justify-content: space-between;
-}
-
-.recordingRulesSummary label,
-.recordingRuleDialog label {
-  display: grid;
-  gap: 5px;
-}
-
-.recordingRulesSummary p,
-.recordingRuleDialog p,
-.recordingRuleRows > p {
-  color: var(--gray-11);
-  margin: 0;
-}
-
-.recordingRulesSummary button,
-.recordingRuleSet > button,
-.recordingRuleActions button {
-  align-items: center;
-  display: inline-flex;
-  gap: 5px;
-}
-
-.recordingRuleSetList {
-  display: grid;
-  gap: 10px;
-  max-height: min(56vh, 620px);
-  overflow: auto;
-}
-
-.recordingRuleSet {
-  border: 1px solid var(--gray-6);
-  border-radius: 8px;
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-}
-
-.recordingRuleSet > header {
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.recordingRuleSetEnabled {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  gap: 8px;
-}
-
-.recordingRuleSetEnabled input[type="text"] {
-  flex: 1;
-  font-weight: 600;
-}
-
-.recordingRuleRows {
-  display: grid;
-  gap: 4px;
-}
-
-.recordingRuleRow {
-  background: var(--gray-2);
-  border-radius: 6px;
-  gap: 9px;
-  min-height: 38px;
-  padding: 5px 7px;
-}
-
-.recordingRuleKind {
-  flex: 0 0 118px;
-}
-
-.recordingRuleRow code {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recordingRuleAction {
-  border-radius: 999px;
-  font-size: 12px;
-  padding: 2px 8px;
-}
-
-.recordingRuleAction--record {
-  background: var(--green-3);
-  color: var(--green-11);
-}
-.recordingRuleAction--doNotRecord {
-  background: var(--gray-4);
-  color: var(--gray-11);
-}
-.recordingRuleAction--reject {
-  background: var(--red-3);
-  color: var(--red-11);
-}
-
-.recordingRuleActions {
-  gap: 3px;
-}
-.recordingRuleActions button {
-  padding: 4px;
-}
-.recordingRulesEmpty {
-  border: 1px dashed var(--gray-7);
-  border-radius: 8px;
-  color: var(--gray-11);
-  padding: 28px;
-  text-align: center;
-}
-
-.recordingRuleDialogBackdrop {
-  align-items: center;
-  background: rgb(0 0 0 / 24%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  position: fixed;
-  z-index: 1100;
-}
-
-.recordingRuleDialog {
-  background: var(--color-panel-solid);
-  border: 1px solid var(--gray-7);
-  border-radius: 10px;
-  box-shadow: var(--shadow-5);
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  width: min(520px, calc(100vw - 32px));
-}
-
-.recordingRuleDialog h3 {
-  margin: 0;
-}
-.recordingRuleDialog footer {
-  gap: 8px;
-  justify-content: flex-end;
-}
-
 .toolDialogBody :is(input, select, textarea):invalid,
 .breakpointDialogBody :is(input, select, textarea):invalid {
   border-color: var(--danger);
@@ -1470,6 +1310,63 @@
   padding: 0 6px;
   color: var(--text);
   font-weight: 600;
+}
+
+/* 多账号设置使用固定双列栅格和统一控件高度；独立面板隔离说明文字，避免内容长度破坏列对齐。 */
+.multiAccountSettings {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.multiAccountPanel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-toolbar);
+}
+
+.multiAccountPanel h2 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  gap: 6px;
+  font-size: var(--font-size-body);
+}
+
+.multiAccountGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.multiAccountGrid button,
+.multiAccountFullButton {
+  width: 100%;
+  min-height: var(--field-height);
+}
+
+.multiAccountSpanTwo {
+  grid-column: 1 / -1;
+}
+
+.multiAccountHint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+}
+
+@media (max-width: 640px) {
+  .multiAccountGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .multiAccountSpanTwo {
+    grid-column: 1;
+  }
 }
 
 .settingsCheckboxRow {

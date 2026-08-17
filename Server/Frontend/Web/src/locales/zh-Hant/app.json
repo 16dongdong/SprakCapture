@@ -102,7 +102,14 @@
       "controlApi": "Control API",
       "eventApi": "Event stream",
       "detail": "Details",
-      "processCaptureStartFailed": "程序捕獲未能載入 WinDivert。請以系統管理員權限執行代理服務，並確認 WinDivert64.sys 可以載入。"
+      "processCaptureStartFailed": "程序捕獲未能載入 WinDivert。請以系統管理員權限執行代理服務，並確認 WinDivert64.sys 可以載入。",
+      "multiAccountTitle": "SOCKS5 帳號服務",
+      "multiAccountDescription": "目前線上帳號、連線與即時總頻寬",
+      "openMultiAccountManagement": "SOCKS5 管理",
+      "onlineAccounts": "目前線上帳號",
+      "accountConnections": "連線數",
+      "realtimeUpload": "即時上行頻寬",
+      "realtimeDownload": "即時下行頻寬"
     },
     "settings": {
       "title": "設定",
@@ -111,16 +118,33 @@
       "unavailableHint": "Connect to GET /api/v1/snapshot before editing.",
       "description": "Listening, authentication, connection limits, and timeouts",
       "restartHint": "套用設定會強制中斷目前代理連線並重新啟動服務。",
+      "multiAccountGroup": "遠端管理",
+      "descriptionMultiAccount": "設定 Sprak Capture Web 遠端存取與統一管理員憑證。",
+      "multiAccountEnabled": "啟用遠端管理",
+      "multiAccountEnabledHint": "開啟後可透過瀏覽器存取完整工作台，並啟用獨立 SOCKS5 帳號驗證。",
+      "multiAccountHost": "遠端監聽位址",
+      "multiAccountPort": "遠端管理連接埠",
+      "multiAccountState": "服務狀態",
+      "multiAccountKeyPrefix": "API Key 指紋",
+      "multiAccountOverridesAuthentication": "獨立帳號驗證已生效",
+      "multiAccountOverridesAuthenticationHint": "關閉遠端管理後可編輯已儲存的單一帳號驗證模式。",
+      "multiAccountState_stopped": "已停止",
+      "multiAccountState_starting": "正在啟動",
+      "multiAccountState_running": "執行中",
+      "multiAccountState_stopping": "正在停止",
+      "multiAccountState_faulted": "故障",
       "listenGroup": "代理设置",
       "listenHost": "Listen address",
       "listenPort": "Listen port",
       "udpBindHost": "UDP bind address",
       "udpBindHostPlaceholder": "Leave empty to follow the listener policy",
+      "startServiceOnLaunch": "啟動時自動開啟服務",
+      "startServiceOnLaunchHint": "控制程式啟動後立即開啟 HTTP / SOCKS5 監聽；啟動失敗時保留設定介面並顯示故障。",
       "authenticationGroup": "Authentication",
       "authenticationMode": "Authentication mode",
       "authenticationNone": "No authentication",
       "authenticationPassword": "Username and password",
-    "authenticationPlugin": "外掛程式接管",
+      "authenticationPlugin": "外掛程式接管",
       "username": "Username",
       "newPassword": "New password",
       "capacityGroup": "Capacity and timeouts",
@@ -169,7 +193,23 @@
       "mcpEnabled": "Enable MCP",
       "mcpEnabledHint": "Listens on loopback only and persists with the installation data configuration.",
       "mcpPort": "MCP port",
-      "mcpEndpoint": "Endpoint"
+      "mcpEndpoint": "Endpoint",
+      "managementIdentityGroup": "管理員帳號設定",
+      "managementIdentityWarning": "修改管理員帳號或密碼會輪換 API Key，並使現有管理工作階段失效。",
+      "managementCurrentUsername": "目前管理員帳號",
+      "managementNewUsername": "新管理員帳號",
+      "managementNewPassword": "新管理員密碼",
+      "managementUpdateIdentity": "儲存管理員設定",
+      "managementApiKeyGroup": "自動化 API Key",
+      "managementApiKeyHint": "API Key 由目前管理員憑據確定性派生，完整 Key 不會寫入快照或日誌。",
+      "managementGetApiKey": "取得並複製 API Key",
+      "managementApiKeyResult": "API Key",
+      "managementApiKeyOneTimeHint": "完整 Key 僅在此對話框中顯示。",
+      "managementFullApiKey": "完整 API Key",
+      "managementApiKeyCopied": "API Key 已複製",
+      "managementCopyApiKey": "複製 API Key",
+      "managementDone": "完成",
+      "managementCloseSecret": "關閉"
     },
     "processManager": {
       "title": "进程管理",
@@ -187,10 +227,26 @@
       "running": "正在运行 · PID {{pids}}",
       "notRunning": "当前未运行，路径已记住",
       "remove": "移除 {{path}}"
+    },
+    "accountManagement": {
+      "title": "帳號管理",
+      "loading": "正在建立帳號管理工作階段…"
+    },
+    "remoteLogin": {
+      "title": "Sprak Capture 遠端管理",
+      "description": "使用與 SOCKS5 帳號管理相同的管理員憑證登入。",
+      "checking": "正在檢查登入狀態…",
+      "username": "管理員帳號",
+      "password": "管理員密碼",
+      "submit": "登入",
+      "submitting": "正在登入…",
+      "failed": "登入失敗，請檢查帳號與密碼。",
+      "logout": "登出"
     }
   },
   "floating": {
     "openMainWindow": "Open main window",
+    "close": "Close floating panel",
     "controlConnected": "Control API connected",
     "controlDisconnected": "Control API disconnected",
     "disconnected": "Disconnected",
@@ -621,7 +677,6 @@
     },
     "names": {
       "blockList": "封鎖清單",
-      "recordingRules": "录制规则集",
       "noCaching": "停用快取",
       "blockCookies": "封鎖 Cookie",
       "mapLocal": "對應本機",
@@ -633,50 +688,6 @@
       "autoSave": "自動儲存",
       "dnsSpoofing": "DNS 對應",
       "packetFilters": "封包濾鏡"
-    },
-    "recordingRules": {
-      "title": "录制规则集",
-      "defaultAction": "未命中时",
-      "orderHint": "按显示顺序执行首条命中规则；应用后无需重启服务。",
-      "addSet": "添加规则集",
-      "removeSet": "删除规则集",
-      "empty": "暂无规则集。点击“添加规则集”开始配置。",
-      "defaultSetName": "规则集 {{sequence}}",
-      "setName": "规则集名称",
-      "ruleDialogTitle": "添加录制规则",
-      "condition": "匹配条件",
-      "value": "匹配值",
-      "action": "执行动作",
-      "rejectHint": "REJECT 可阻断 HTTP、HTTPS 和 WinDivert 透明 TCP；被动观察的 UDP 只停止录制，不改写原始数据报。",
-      "actions": {
-        "record": "录制",
-        "doNotRecord": "不录制",
-        "reject": "拒绝"
-      },
-      "kinds": {
-        "domain": "完整域名",
-        "domainSuffix": "域名后缀",
-        "domainKeyword": "域名关键字",
-        "destinationIpCidr": "目标 IP/CIDR",
-        "clientIpCidr": "客户端 IP/CIDR",
-        "port": "目标端口",
-        "processName": "进程名称",
-        "protocol": "协议",
-        "method": "HTTP 方法",
-        "match": "全部流量"
-      },
-      "placeholders": {
-        "domain": "example.com",
-        "domainSuffix": "example.com",
-        "domainKeyword": "music",
-        "destinationIpCidr": "192.0.2.0/24",
-        "clientIpCidr": "127.0.0.1/32",
-        "port": "443 或 8000-9000",
-        "processName": "example.exe",
-        "protocol": "http、https、tcp 或 udp",
-        "method": "GET",
-        "match": "無需填寫"
-      }
     },
     "export": {
       "title": "匯出錄製工作階段",
@@ -989,6 +1000,12 @@
     "open": "Plugins",
     "title": "Plugins",
     "description": "Install, enable, and configure local Native plugins. The traffic hot path always runs inside the host process.",
+    "openWindow": "開啟插件視窗",
+    "windowDescription": "插件 UI 會在自己的獨立視窗中開啟，不佔用主工作區。",
+    "windowEyebrow": "插件視窗",
+    "windowTitle": "插件",
+    "closeWindow": "關閉",
+    "noWindowUi": "此插件未宣告獨立設定 UI。",
     "refresh": "Refresh plugins",
     "install": "Install plugin package…",
     "loading": "Loading plugins…",
@@ -1019,5 +1036,13 @@
       "failed": "Failed",
       "incompatible": "Incompatible"
     }
+  },
+  "desktopClose": {
+    "title": "關閉主視窗",
+    "question": "是否進入系統匣執行？",
+    "remember": "記住我的選擇",
+    "yes": "是",
+    "no": "否",
+    "processing": "處理中"
   }
 }

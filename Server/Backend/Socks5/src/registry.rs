@@ -7,9 +7,9 @@ use uuid::Uuid;
 use crate::{
     config::{capturedStreamPrefixLimit, maximumTotalCapturedStreamBytes},
     model::{
-        CaptureGeneration, CapturedBytes, CapturedBytesBudget, CapturedPacketList, ServiceMetrics,
-        SessionApplicationProtocol, SessionEvent, SessionSnapshot, SessionState, TrafficDirection,
-        currentTimeMilliseconds,
+        CaptureGeneration, CapturedBytes, CapturedBytesBudget, CapturedPacketList,
+        CapturedPacketWrite, ServiceMetrics, SessionApplicationProtocol, SessionEvent,
+        SessionSnapshot, SessionState, TrafficDirection, currentTimeMilliseconds,
     },
 };
 
@@ -35,6 +35,14 @@ pub struct SessionUpdate {
     pub targetAddress: Option<String>,
     pub applicationProtocol: Option<SessionApplicationProtocol>,
     pub state: SessionState,
+}
+
+/// 收拢一次写线前后载荷及会话方向，保证录制正文、差异和指标使用同一份转发事实。
+pub struct ModifiedTraffic<'a> {
+    pub sessionId: &'a str,
+    pub direction: TrafficDirection,
+    pub originalPayload: &'a [u8],
+    pub payload: &'a [u8],
 }
 
 impl SessionRegistry {
@@ -133,20 +141,25 @@ impl SessionRegistry {
 
     /// 累计已成功转发的载荷并保存完整正文与分片索引；空载荷不发布无意义事件。
     pub fn addTraffic(&self, sessionId: &str, direction: TrafficDirection, payload: &[u8]) {
-        self.addModifiedTraffic(sessionId, direction, payload, payload);
+        self.addModifiedTraffic(ModifiedTraffic {
+            sessionId,
+            direction,
+            originalPayload: payload,
+            payload,
+        });
     }
 
     /// 记录插件处理前后的真实字节并提取差异；正文始终保存最终写线值，差异只作为包级可视化元数据。
     ///
     /// 运行上下文：SOCKS TCP/UDP 写入对端成功后调用。`originalPayload` 是读取原文，`payload` 是最终写线值。
     /// 失败语义：会话已结束或最终正文为空时忽略；该方法不影响已经完成的网络写入。
-    pub fn addModifiedTraffic(
-        &self,
-        sessionId: &str,
-        direction: TrafficDirection,
-        originalPayload: &[u8],
-        payload: &[u8],
-    ) {
+    pub fn addModifiedTraffic(&self, traffic: ModifiedTraffic<'_>) {
+        let ModifiedTraffic {
+            sessionId,
+            direction,
+            originalPayload,
+            payload,
+        } = traffic;
         if payload.is_empty() {
             return;
         }
@@ -165,14 +178,14 @@ impl SessionRegistry {
                     let storedBytes = snapshot
                         .capturedBytesUp
                         .append(payload, capturedStreamPrefixLimit);
-                    snapshot.capturedPackets.append(
+                    snapshot.capturedPackets.append(CapturedPacketWrite {
                         direction,
                         capturedAtMilliseconds,
                         storedOffsetBytes,
                         storedBytes,
-                        byteCount,
-                        modifications.clone(),
-                    );
+                        originalBytes: byteCount,
+                        modifications: modifications.clone(),
+                    });
                 }
                 TrafficDirection::Down => {
                     snapshot.bytesDown = snapshot.bytesDown.saturating_add(byteCount);
@@ -180,14 +193,14 @@ impl SessionRegistry {
                     let storedBytes = snapshot
                         .capturedBytesDown
                         .append(payload, capturedStreamPrefixLimit);
-                    snapshot.capturedPackets.append(
+                    snapshot.capturedPackets.append(CapturedPacketWrite {
                         direction,
                         capturedAtMilliseconds,
                         storedOffsetBytes,
                         storedBytes,
-                        byteCount,
+                        originalBytes: byteCount,
                         modifications,
-                    );
+                    });
                 }
             }
             snapshot.updatedAtMilliseconds = capturedAtMilliseconds;

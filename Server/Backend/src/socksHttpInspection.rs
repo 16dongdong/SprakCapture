@@ -9,7 +9,7 @@ use http_proxy_core::{
 use location_core::ResolvedLocation;
 use plugin_host::PluginHost;
 use socks5_core::{
-    SessionApplicationProtocol,
+    SessionApplicationProtocol, TrafficDirection,
     interception::{TcpTunnel, TcpTunnelDisposition, TcpTunnelInterceptor},
 };
 use tokio::{
@@ -354,24 +354,42 @@ impl TcpTunnelInterceptor for SocksHttpInspector {
                         targetHost,
                         connectHost,
                         targetPort,
+                        accountLease,
                         ..
                     } = tunnel;
                     // HTTP 转发器会按 Host 重新建立受控上游连接，必须先关闭 SOCKS5 预连接，避免留下无读取者的半开套接字。
                     drop(remoteStream);
-                    handler
-                        .servePlainHttp(
-                            clientStream,
-                            clientAddress,
-                            SocksHttpTarget {
-                                host: targetHost,
-                                port: targetPort,
-                                fixedAddress: connectHost.parse().ok(),
-                                clientProcessName,
-                                clientProcessId,
-                            },
-                            cancellation,
-                        )
-                        .await?;
+                    let target = SocksHttpTarget {
+                        host: targetHost,
+                        port: targetPort,
+                        fixedAddress: connectHost.parse().ok(),
+                        clientProcessName,
+                        clientProcessId,
+                    };
+                    let result = if let Some(lease) = accountLease {
+                        handler
+                            .servePlainHttp(
+                                lease.meterStream(
+                                    clientStream,
+                                    TrafficDirection::Up,
+                                    TrafficDirection::Down,
+                                ),
+                                clientAddress,
+                                target,
+                                cancellation,
+                            )
+                            .await
+                    } else {
+                        handler
+                            .servePlainHttp(clientStream, clientAddress, target, cancellation)
+                            .await
+                    };
+                    if let Err(error) = result {
+                        return Ok(TcpTunnelDisposition::Failed {
+                            applicationProtocol: SessionApplicationProtocol::Http,
+                            error,
+                        });
+                    }
                     Ok(TcpTunnelDisposition::Handled(
                         SessionApplicationProtocol::Http,
                     ))
@@ -391,24 +409,47 @@ impl TcpTunnelInterceptor for SocksHttpInspector {
                         connectHost,
                         targetPort,
                         cancellation,
+                        accountLease,
                         ..
                     } = tunnel;
                     // TLS 解密器同样自己建立严格验证的上游 TLS；SOCKS5 预连接只用于确认目标可达后再作协议分流。
                     drop(remoteStream);
-                    handler
-                        .serveInterceptedHttps(
-                            clientStream,
-                            clientAddress,
-                            SocksHttpTarget {
-                                host: targetHost,
-                                port: targetPort,
-                                fixedAddress: connectHost.parse().ok(),
-                                clientProcessName,
-                                clientProcessId,
-                            },
-                            cancellation,
-                        )
-                        .await?;
+                    let target = SocksHttpTarget {
+                        host: targetHost,
+                        port: targetPort,
+                        fixedAddress: connectHost.parse().ok(),
+                        clientProcessName,
+                        clientProcessId,
+                    };
+                    let result = if let Some(lease) = accountLease {
+                        handler
+                            .serveInterceptedHttps(
+                                lease.meterStream(
+                                    clientStream,
+                                    TrafficDirection::Up,
+                                    TrafficDirection::Down,
+                                ),
+                                clientAddress,
+                                target,
+                                cancellation,
+                            )
+                            .await
+                    } else {
+                        handler
+                            .serveInterceptedHttps(
+                                clientStream,
+                                clientAddress,
+                                target,
+                                cancellation,
+                            )
+                            .await
+                    };
+                    if let Err(error) = result {
+                        return Ok(TcpTunnelDisposition::Failed {
+                            applicationProtocol: SessionApplicationProtocol::Https,
+                            error,
+                        });
+                    }
                     Ok(TcpTunnelDisposition::Handled(
                         SessionApplicationProtocol::Https,
                     ))

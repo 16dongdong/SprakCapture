@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "androidNdk": "28.2.13676358",
+  "hev": {
+    "repository": "https://github.com/heiher/hev-socks5-tunnel.git",
+    "version": "2.9.3",
+    "commit": "b9b9b7b9b0febe32bb5d8cdb9ffa414d94242b75",
+    "submodules": {
+      "src/core": "5d37a81dc8d492d54c89aa6a00a5c4f505b75b99",
+      "third-part/hev-task-system": "ed320fd855e84c6a0b8792db1edf5899f1584132",
+      "third-part/lwip": "7a246bcd7ab66f6057bcbae979ca8b11428cc459",
+      "third-part/yaml": "efa36117a8646d26d12b58e05bac472d7854a70d"
+    },
+    "patchSha256": "83db8852292439f39e06e023872511605bb148aad78e1b5f6fc48159d9b234ba",
+    "archives": {
+      "arm64-v8a": "519c01aa066c42605a67dcf4106ea20d022e815da4d06476da52edc8d419d925",
+      "armeabi-v7a": "9bc0dfcf58fa2443145af7bbf3fefe9dbdab46cd779a89ce25c308536651fde4"
+    }
+  },
+  "monocypher": {
+    "version": "4.0.3",
+    "archiveUrl": "https://monocypher.org/download/monocypher-4.0.3.tar.gz",
+    "archiveSha512": "40904ada5c7ee4f7741733e38b69a30a4b0561cbffba5ffe7c2dce16136d540251ec0d9056ff606510d3b5b708fb8a40db7e0870d4a0b2dc17ba2bfb880f8965",
+    "archives": {
+      "arm64-v8a": "d71078975231a38ac4963f200262871381bbe58b780bb9630cb4902b934ab537",
+      "armeabi-v7a": "c8335de0efeed67f7a2a98451f043657a0fdb45b157729012b7fbca1a4cf9c2b"
+    }
+  }
+}

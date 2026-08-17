@@ -56,9 +56,9 @@ pub use tools::{
     DnsSpoofingRule, DnsSpoofingTool, EditableHttpMessage, HeaderAction, MapLocalConfiguration,
     MapLocalRule, MapLocalTool, MapRemoteConfiguration, MapRemoteRule, MapRemoteTool,
     MessageDraftError, MirrorConfiguration, MirrorError, MirrorLayout, MirrorOverflowPolicy,
-    MirrorPublicState, MirrorTool, NoCachingConfiguration, NoCachingTool, RecordingRulesTool,
-    RewriteConfiguration, RewriteError, RewriteRule, RewriteRuleType, RewriteSet, RewriteTool,
-    SuspendedBreakpoint, ThrottleChunk, ThrottleChunkAction, ThrottleDirection, ThrottlePacer,
-    ThrottlePlan, ThrottlePreset, ThrottleProfile, ThrottlingConfiguration, ThrottlingError,
+    MirrorPublicState, MirrorTool, NoCachingConfiguration, NoCachingTool, RewriteConfiguration,
+    RewriteError, RewriteRule, RewriteRuleType, RewriteSet, RewriteTool, SuspendedBreakpoint,
+    ThrottleChunk, ThrottleChunkAction, ThrottleDirection, ThrottlePacer, ThrottlePlan,
+    ThrottlePreset, ThrottleProfile, ThrottlingConfiguration, ThrottlingError,
     ThrottlingPublicState, ThrottlingTool, TokenBucket, builtInThrottlePresets,
 };

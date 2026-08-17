@@ -9,13 +9,13 @@ SOCKS5 公开监听入口。
 服务端由三个可独立验证的层组成：
 
 ```text
-Server/Backend/Socks5
+Backend/Socks5
         ↓
-Server/Backend
+Backend
         ↓ HTTP / SSE / WebSocket
-Server/Frontend/Web
+Frontend/Web
         ↓ 构建产物
-Server/Frontend/Desktop
+Frontend/Desktop
 ```
 
 - `Backend/Socks5` 是不依赖界面的 Rust 协议与转发库。

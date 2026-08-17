@@ -10,17 +10,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use capture_core::{
-    HarExportRequest, RecordingRuleConfiguration, RecordingRuleRuntime, RecordingSession,
-};
+use capture_core::{HarExportRequest, RecordingSession};
 use http_proxy_core::{
     AutoSaveConfiguration, AutoSavePublicState, AutoSaveTool, BlockCookiesConfiguration,
     BlockCookiesTool, BlockListConfiguration, BlockListTool, BreakpointError,
     BreakpointsConfiguration, BreakpointsTool, DnsSpoofingConfiguration, DnsSpoofingTool,
     EditableHttpMessage, MapLocalConfiguration, MapLocalTool, MapRemoteConfiguration,
     MapRemoteTool, MirrorConfiguration, MirrorPublicState, MirrorTool, NoCachingConfiguration,
-    NoCachingTool, RecordingRulesTool, RewriteConfiguration, RewriteTool, ThrottlingConfiguration,
-    ThrottlingTool, ToolPipeline,
+    NoCachingTool, RewriteConfiguration, RewriteTool, ThrottlingConfiguration, ThrottlingTool,
+    ToolPipeline,
 };
 use plugin_host::{PacketFilterConfiguration, PacketFilterRuntime};
 use serde::{Deserialize, Serialize};
@@ -31,8 +29,7 @@ use crate::localization::RequestLocale;
 
 // 公开顺序只列出当前已注册且可通过控制 API 配置的工具。规划中的工具若提前出现在快照，
 // 客户端会把它们渲染成可操作能力，但对应 GET/PUT 必然返回 toolNotFound，形成虚假入口。
-const pipelineOrder: [&str; 13] = [
-    "recordingRules",
+const pipelineOrder: [&str; 12] = [
     "dnsSpoofing",
     "blockList",
     "noCaching",
@@ -52,7 +49,6 @@ const pipelineOrder: [&str; 13] = [
 #[serde(rename_all = "camelCase")]
 pub struct ToolsPublicState {
     pipelineOrder: Vec<String>,
-    recordingRules: RecordingRuleConfiguration,
     packetFilters: PacketFilterConfiguration,
     blockList: BlockListConfiguration,
     noCaching: NoCachingConfiguration,
@@ -76,7 +72,6 @@ pub struct ToolsPublicState {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub(super) struct PersistedToolsConfiguration {
-    recordingRules: RecordingRuleConfiguration,
     packetFilters: PacketFilterConfiguration,
     blockList: BlockListConfiguration,
     noCaching: NoCachingConfiguration,
@@ -91,18 +86,10 @@ pub(super) struct PersistedToolsConfiguration {
     autoSave: AutoSaveConfiguration,
 }
 
-impl PersistedToolsConfiguration {
-    /// 克隆录制会话启动前需要的规则配置；返回值与随后构造 ToolRuntime 的持久快照来自同一文件版本。
-    pub(super) fn recordingRules(&self) -> RecordingRuleConfiguration {
-        self.recordingRules.clone()
-    }
-}
-
 /// 管理所有可热更新工具实例及其固定流水线注册关系；配置更新只替换实例内快照，不重启监听器。
 #[derive(Clone)]
 pub(super) struct ToolRuntime {
     pipeline: ToolPipeline,
-    recordingRules: RecordingRuleRuntime,
     packetFilters: PacketFilterRuntime,
     blockList: Arc<BlockListTool>,
     noCaching: Arc<NoCachingTool>,
@@ -126,10 +113,6 @@ impl ToolRuntime {
         packetFilters: PacketFilterRuntime,
         configuration: PersistedToolsConfiguration,
     ) -> Result<Self, String> {
-        let recordingRules = recording.recordingRules();
-        recordingRules
-            .replaceConfiguration(configuration.recordingRules.clone())
-            .map_err(|error| format!("recordingRules:{error}"))?;
         packetFilters
             .replaceConfiguration(configuration.packetFilters.clone())
             .map_err(|error| format!("packetFilters:{error}"))?;
@@ -178,9 +161,6 @@ impl ToolRuntime {
                 .map_err(|error| format!("autoSave:{}", error.code()))?,
         );
         let pipeline = ToolPipeline::new();
-        pipeline
-            .register(Arc::new(RecordingRulesTool::new(recordingRules.clone())))
-            .map_err(|error| format!("pipeline:{error}"))?;
         for tool in [
             blockList.clone() as Arc<dyn http_proxy_core::PipelineTool>,
             noCaching.clone() as Arc<dyn http_proxy_core::PipelineTool>,
@@ -198,7 +178,6 @@ impl ToolRuntime {
         }
         Ok(Self {
             pipeline,
-            recordingRules,
             packetFilters,
             blockList,
             noCaching,
@@ -237,7 +216,6 @@ impl ToolRuntime {
                 .iter()
                 .map(|name| (*name).to_owned())
                 .collect(),
-            recordingRules: self.recordingRules.configuration(),
             packetFilters: self.packetFilters.configuration(),
             blockList: self.blockList.configuration(),
             noCaching: self.noCaching.configuration(),
@@ -257,7 +235,6 @@ impl ToolRuntime {
     /// 克隆全部可持久化工具配置；运行统计和队列状态刻意排除在外。
     pub(super) fn persistedConfiguration(&self) -> PersistedToolsConfiguration {
         PersistedToolsConfiguration {
-            recordingRules: self.recordingRules.configuration(),
             packetFilters: self.packetFilters.configuration(),
             blockList: self.blockList.configuration(),
             noCaching: self.noCaching.configuration(),
@@ -276,7 +253,6 @@ impl ToolRuntime {
     /// 返回指定工具配置；响应只用于单工具读取，工具总览仍以 snapshot.tools 为权威来源。
     pub(super) fn configuration(&self, toolId: &str) -> Result<Value, ToolControlError> {
         let value = match toolId {
-            "recordingRules" => serde_json::to_value(self.recordingRules.configuration()),
             "packetFilters" => serde_json::to_value(self.packetFilters.configuration()),
             "blockList" => serde_json::to_value(self.blockList.configuration()),
             "noCaching" => serde_json::to_value(self.noCaching.configuration()),
@@ -309,7 +285,6 @@ impl ToolRuntime {
         // 磁盘快照先于运行时发布；候选已用与数据面相同的校验器验证，因此成功返回时两侧必然一致。
         persist(persistedConfiguration).map_err(|_| ToolControlError::Persistence)?;
         match toolId {
-            "recordingRules" => self.replaceRecordingRules(configuration)?,
             "packetFilters" => self.replacePacketFilters(configuration)?,
             "blockList" => self.replaceBlockList(configuration)?,
             "noCaching" => self.replaceNoCaching(configuration)?,
@@ -335,12 +310,6 @@ impl ToolRuntime {
     ) -> Result<PersistedToolsConfiguration, ToolControlError> {
         let mut candidate = self.persistedConfiguration();
         match toolId {
-            "recordingRules" => {
-                let configuration: RecordingRuleConfiguration = decodeConfiguration(configuration)?;
-                RecordingRuleRuntime::new(configuration.clone())
-                    .map_err(|_| ToolControlError::InvalidConfiguration)?;
-                candidate.recordingRules = configuration;
-            }
             "packetFilters" => {
                 let configuration: PacketFilterConfiguration = decodeConfiguration(configuration)?;
                 PacketFilterRuntime::new(configuration.clone())
@@ -583,14 +552,6 @@ impl ToolRuntime {
             .map_err(|_| ToolControlError::InvalidConfiguration)
     }
 
-    /// 解析并原子替换录制规则；已有连接沿用建立时裁决，新事务立即读取新快照。
-    fn replaceRecordingRules(&self, configuration: Value) -> Result<(), ToolControlError> {
-        let configuration = decodeConfiguration(configuration)?;
-        self.recordingRules
-            .replaceConfiguration(configuration)
-            .map_err(|_| ToolControlError::InvalidConfiguration)
-    }
-
     /// 解析并原子替换最终写线滤镜；现有连接的下一块 TCP/UDP 数据立即读取新快照。
     fn replacePacketFilters(&self, configuration: Value) -> Result<(), ToolControlError> {
         let configuration = decodeConfiguration(configuration)?;
@@ -641,7 +602,7 @@ impl ControlState {
             })
             .map_err(mapToolUpdateError)?;
         let eventTools = tools.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Tools {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Tools {
             serverInstanceId,
             revision,
             tools: Box::new(eventTools),
@@ -684,7 +645,7 @@ impl ControlState {
     /// 发布当前断点队列；自动监视任务和显式 continue/abort 均复用同一事件生成路径。
     pub(super) fn publishBreakpointQueue(&self) {
         let suspended = self.tools.suspendedBreakpoints();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Breakpoints {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Breakpoints {
             serverInstanceId,
             revision,
             suspended,
@@ -711,7 +672,7 @@ impl ControlState {
             .await
             .map_err(mapToolUpdateError)?;
         let tools = self.tools.publicState();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Tools {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Tools {
             serverInstanceId,
             revision,
             tools: Box::new(tools),

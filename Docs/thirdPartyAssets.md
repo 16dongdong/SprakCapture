@@ -9,7 +9,7 @@ Desktop 安装包一并发布。
 
 ## 应用图标
 
-`Server/Frontend/Desktop/src-tauri/icons/` 中的蓝底环形标记是项目自有资源，只用于
+`Frontend/Desktop/src-tauri/icons/` 中的蓝底环形标记是项目自有资源，只用于
 桌面窗口与安装包。位图文件按二进制跟踪，构建脚本不得重新压缩或改写源文件。
 
 ## 字体

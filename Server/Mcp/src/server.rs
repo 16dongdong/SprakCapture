@@ -81,13 +81,21 @@ const queryValueEncodeSet: &AsciiSet = &CONTROLS
     .add(b'|')
     .add(b'}');
 
-const toolDescriptionKeys: [(&str, &str); 60] = [
+const toolDescriptionKeys: [(&str, &str); 62] = [
     (
         "capture_service_get_snapshot",
         "mcp.tool.serviceGetSnapshot.description",
     ),
+    (
+        "capture_ui_get_context",
+        "mcp.tool.uiGetContext.description",
+    ),
     ("capture_service_start", "mcp.tool.serviceStart.description"),
     ("capture_service_stop", "mcp.tool.serviceStop.description"),
+    (
+        "capture_client_package_get",
+        "mcp.tool.clientPackageGet.description",
+    ),
     ("capture_plugin_list", "mcp.tool.pluginList.description"),
     (
         "capture_plugin_set_enabled",
@@ -558,6 +566,52 @@ impl ControlMcpServer {
         self.executeRequest(
             getMethod(),
             "api/v1/snapshot",
+            None,
+            arguments.locale.as_deref(),
+        )
+        .await
+    }
+
+    /// 获取用户当前可见页面和正在查看的稳定资源标识；正文继续由领域读取工具按 ID 获取。
+    #[tool(
+        name = "capture_ui_get_context",
+        description = "Get the current visible interface and viewed data selection.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn uiGetContext(
+        &self,
+        Parameters(arguments): Parameters<LocaleArguments>,
+    ) -> CallToolResult {
+        self.executeRequest(
+            getMethod(),
+            "api/v1/ui/context",
+            None,
+            arguments.locale.as_deref(),
+        )
+        .await
+    }
+
+    /// 读取 Android 客户端生成任务与最近已签名 APK；响应不包含文件系统路径或任何账号凭据。
+    #[tool(
+        name = "capture_client_package_get",
+        description = "Get the Android client package build state and recent signed artifacts.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn clientPackageGet(
+        &self,
+        Parameters(arguments): Parameters<LocaleArguments>,
+    ) -> CallToolResult {
+        self.executeRequest(
+            getMethod(),
+            "api/v1/clientPackages",
             None,
             arguments.locale.as_deref(),
         )

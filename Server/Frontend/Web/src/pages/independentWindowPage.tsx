@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -25,23 +25,11 @@ import { publishIndependentWindowResult } from "../platform/independentWindowEve
 import { useServiceStore } from "../state/serviceStore";
 import { SettingsPage } from "./settingsPage";
 import { ProcessManagerPage } from "./processManagerPage";
+import { WindowSurface } from "./windowSurface";
 
 /** 请求关闭当前受管窗口；按钮处理器不吞掉原生失败，开发控制台会保留完整异常。 */
 function closeWindow(): void {
   void closeCurrentManagedWindow();
-}
-
-/**
- * 提供独立窗口的固定视口和正文网格；具体编辑器沿用原有业务布局，窗口切换时不会改变主窗口尺寸。
- */
-function WindowSurface({ children }: { children: ReactNode }) {
-  return (
-    <div className="windowSurface independentWindowSurface">
-      <div className="windowSurfaceContent independentWindowContent">
-        {children}
-      </div>
-    </div>
-  );
 }
 
 interface WindowFeedbackProps {

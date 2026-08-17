@@ -42,6 +42,7 @@ cargo run -p capture-mcp
 | Tool | 控制 API |
 |---|---|
 | `capture_service_get_snapshot` | `GET /api/v1/snapshot` |
+| `capture_ui_get_context` | `GET /api/v1/ui/context` |
 | `capture_service_start` | `POST /api/v1/service/start` |
 | `capture_service_stop` | `POST /api/v1/service/stop` |
 | `capture_config_get` | `GET /api/v1/snapshot` 的 `configuration` |
@@ -126,5 +127,5 @@ npx -y @modelcontextprotocol/inspector target\debug\captureMcp.exe
 ```
 
 Inspector 的 `tools/list` 应只返回上表十二项。清除已结束会话和清空录制均属于破坏性
-操作，确认要求分别位于 `Server/Skill/references/service-and-config.md` 与
+操作，确认要求分别位于 `Skill/references/service-and-config.md` 与
 `recording-and-transactions.md`，MCP Server 本身不设置拒绝围栏。

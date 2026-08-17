@@ -90,8 +90,8 @@ example.protocol/
 
 ## 5. SDK 体验
 
-官方 SDK 位于 [`Server/PluginSDK`](../Server/PluginSDK/README.md)，以宿主生成的 JSON Schema 和
-[`PROTOCOL.md`](../Server/PluginSDK/PROTOCOL.md) 为唯一线上契约。C++、Rust、Go、Python 与 TypeScript
+官方 SDK 位于 [`PluginSDK`](../PluginSDK/README.md)，以宿主生成的 JSON Schema 和
+[`PROTOCOL.md`](../PluginSDK/PROTOCOL.md) 为唯一线上契约。C++、Rust、Go、Python 与 TypeScript
 提供相同事件、动作和生命周期语义：作者注册普通函数，SDK 负责 ABI/JSONL、请求关联、字节所有权、
 停止与销毁。C++/Rust 使用进程内 Native ABI；Python/TypeScript 使用 Sidecar JSONL；Go 可在 Native
 与 Native Worker 之间按部署需求选择。每种语言目录都包含可构建示例和离线模拟测试，作者无需复制宿主
@@ -223,7 +223,9 @@ Rust、C/C++、TypeScript、Python SDK 的语义必须一致；语言差异只�
 - 工作区面板、连接徽标和状态项。
 - 图标、主题、键盘操作、无障碍名称和空/错/加载状态。
 
-声明式贡献提供最佳跨版本兼容。作者也可以使用自定义 WebView、独立窗口或进程内 Native UI；直接依赖主窗口 DOM 或私有 CSS 时由作者自行适配宿主升级。
+当前发布版以 `configSchema` 作为稳定声明式 UI 契约。安装后，插件管理页的“打开插件窗口”按钮会创建或聚焦该插件唯一的独立窗口；Schema 字段、秘密配置状态和保存动作只在此窗口出现，不会嵌入主工作区。插件作者应把可视配置标题、说明、默认值、必填项和高级字段完整声明在 Schema 中。
+
+自定义 WebView 或进程内 Native UI 接入后也必须复用同一插件窗口入口和按插件 ID 管理的生命周期，不能直接依赖主窗口 DOM 或私有 CSS。只有宿主渲染的声明式贡献承诺跨版本兼容。
 
 ## 12. 打包、发布和供应链
 

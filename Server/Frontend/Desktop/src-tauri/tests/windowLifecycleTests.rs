@@ -15,6 +15,8 @@ use windowLifecycle::{
 const independentWindowPattern: &str = "app-window-*";
 const createWebviewPermission: &str = "core:webview:allow-create-webview-window";
 const closeWindowPermission: &str = "core:window:allow-close";
+const hideWindowPermission: &str = "core:window:allow-hide";
+const startDraggingPermission: &str = "core:window:allow-start-dragging";
 
 /// 验证常驻窗口各自采用稳定策略，确保主窗口后台运行和悬浮面板重复唤起不会销毁 Webview。
 #[test]
@@ -68,4 +70,31 @@ fn independentWindowCapabilityMatchesManagedWindowContract() {
             "独立窗口能力缺少权限 {permission}"
         );
     }
+}
+
+/// 验证常驻窗口能力清单允许前端调用自绘标题区拖动 API，避免无标题栏后失去移动入口。
+#[test]
+fn defaultWindowCapabilityAllowsFloatingDrag() {
+    let capabilityPath = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("capabilities")
+        .join("default.json");
+    let capability: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(capabilityPath).expect("读取常驻窗口能力清单失败"),
+    )
+    .expect("解析常驻窗口能力清单失败");
+    let permissions = capability["permissions"]
+        .as_array()
+        .expect("常驻窗口能力清单缺少 permissions 数组");
+    assert!(
+        permissions
+            .iter()
+            .any(|value| value == startDraggingPermission),
+        "常驻窗口能力缺少悬浮窗拖动权限"
+    );
+    assert!(
+        permissions
+            .iter()
+            .any(|value| value == hideWindowPermission),
+        "常驻窗口能力缺少互斥隐藏权限"
+    );
 }

@@ -19,7 +19,7 @@ use std::{
 };
 
 use capture_core::{
-    BeginTransaction, BodyWrite, MessageSide, RecordingRuleAction, RecordingSession, StreamPacket,
+    BeginTransaction, BodyWrite, MessageSide, RecordingSession, StreamPacket,
     StreamPacketModification, TransactionCompletion, TransactionProtocol,
 };
 use location_core::ResolvedLocation;
@@ -1329,10 +1329,6 @@ async fn persistUdpDatagram(
         contentType: binaryContentType.to_owned(),
         startAtMilliseconds: event.capturedAtMilliseconds,
     };
-    // 封包滤镜已经在线上写入前决定是否放行；这里的 REJECT 只属于录制规则，不能再次改变已经写线的 UDP 数据报。
-    if recording.recordingDecision(&transaction) == RecordingRuleAction::Reject {
-        return Ok(());
-    }
     let transactionId = recording.beginTransaction(transaction).await?;
     let Some(transactionId) = transactionId else {
         return Ok(());

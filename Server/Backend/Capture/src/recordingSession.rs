@@ -14,10 +14,10 @@ use uuid::Uuid;
 use crate::{
     BeginTransaction, BodyHandleMeta, BodyReadLease, BodyRef, BodyResponse, BodyStorageKind,
     BodyWrite, CaptureError, HeaderField, MessageSide, RecordingConfiguration, RecordingLimits,
-    RecordingPageView, RecordingRuleAction, RecordingRuleRuntime, RecordingSettingsUpdate,
-    RecordingSnapshot, RecordingState, ResponseRangeCandidate, StreamPacket, TransactionCompletion,
-    TransactionDetailRecord, TransactionError, TransactionProgressUpdate, TransactionProtocol,
-    TransactionStatus, TransactionSummary, TransactionUpdate, TransactionUserUpdate,
+    RecordingPageView, RecordingSettingsUpdate, RecordingSnapshot, RecordingState,
+    ResponseRangeCandidate, StreamPacket, TransactionCompletion, TransactionDetailRecord,
+    TransactionError, TransactionProgressUpdate, TransactionProtocol, TransactionStatus,
+    TransactionSummary, TransactionUpdate, TransactionUserUpdate,
     bodyStore::{BodySpool, BodyStore},
     metadataBudget::{
         boundBeginTransaction, boundBodyWrite, boundCompletion, boundHeaders,
@@ -199,7 +199,6 @@ struct RecordingSessionInner {
     // 不能把状态预算与文件提交任意拆锁，否则 clear 可能删除刚提交但尚未登记的正文。
     state: RwLock<RecordingStateInner>,
     bodyStore: BodyStore,
-    recordingRules: RecordingRuleRuntime,
     changeSender: watch::Sender<u64>,
 }
 
@@ -224,8 +223,6 @@ impl RecordingSession {
         for pattern in &configuration.ignoreLocations {
             validateLocationPattern(pattern)?;
         }
-        let recordingRules = RecordingRuleRuntime::new(configuration.recordingRules)
-            .map_err(|_| CaptureError::InvalidRecordingRules)?;
         let recordingSessionId = Uuid::new_v4().to_string();
         let bodyStore = BodyStore::new(
             &configuration.spillDirectory,
@@ -257,7 +254,6 @@ impl RecordingSession {
                     closed: false,
                 }),
                 bodyStore,
-                recordingRules,
                 changeSender,
             }),
         })
@@ -349,16 +345,6 @@ impl RecordingSession {
         shouldRecordFromState(&state, location)
     }
 
-    /// 返回录制规则运行时的共享句柄；控制面热更新与数据面判断必须读取同一原子快照。
-    pub fn recordingRules(&self) -> RecordingRuleRuntime {
-        self.inner.recordingRules.clone()
-    }
-
-    /// 对即将建立的事务执行规则裁决；同步读取不持有会话异步锁，也不会阻塞正文落盘。
-    pub fn recordingDecision(&self, input: &BeginTransaction) -> RecordingRuleAction {
-        self.inner.recordingRules.decision(input)
-    }
-
     /// 创建 pending 事务；暂停、忽略或禁用隧道元数据时返回 Ok(None) 而不消耗 sequence。
     pub async fn beginTransaction(
         &self,
@@ -368,7 +354,6 @@ impl RecordingSession {
         ensureOpen(&state)?;
         self.drainCleanupQueueLocked(&mut state).await?;
         if !shouldRecordFromState(&state, &input.location)?
-            || self.recordingDecision(&input) == RecordingRuleAction::DoNotRecord
             || (matches!(
                 input.protocol,
                 TransactionProtocol::Tunnel | TransactionProtocol::Socks

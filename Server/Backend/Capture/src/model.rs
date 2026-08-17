@@ -7,8 +7,6 @@ use std::{
 use location_core::{LocationPattern, ResolvedLocation};
 use serde::{Deserialize, Serialize};
 
-use crate::RecordingRuleConfiguration;
-
 /// 表示 active RecordingSession 是否接纳新事务。
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,7 +50,6 @@ pub struct RecordingConfiguration {
     pub limits: RecordingLimits,
     pub ignoreLocations: Vec<LocationPattern>,
     pub recordTunnelMetadata: bool,
-    pub recordingRules: RecordingRuleConfiguration,
     pub memoryBodyThreshold: usize,
     /// 固定会话级持久元数据记账上限；不计入按需读取产生的瞬时响应副本。
     pub metadataMemoryBudgetBytes: usize,
@@ -66,7 +63,6 @@ impl Default for RecordingConfiguration {
             limits: RecordingLimits::default(),
             ignoreLocations: Vec::new(),
             recordTunnelMetadata: true,
-            recordingRules: RecordingRuleConfiguration::default(),
             memoryBodyThreshold: 256 * 1024,
             metadataMemoryBudgetBytes: crate::metadataBudget::defaultMetadataMemoryBudgetBytes,
             spillDirectory: std::env::temp_dir().join("proxyCapture"),

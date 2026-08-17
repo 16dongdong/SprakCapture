@@ -1,6 +1,7 @@
 {
   "mcp.server.instructions": "通过与界面等价的能力操作本机 Sprak Capture 控制接口。",
   "mcp.tool.serviceGetSnapshot.description": "获取 Sprak Capture 服务的权威快照。",
+  "mcp.tool.uiGetContext.description": "获取 Sprak Capture 当前可见界面以及正在查看的数据选择。",
   "mcp.tool.serviceStart.description": "启动 Sprak Capture 数据服务。",
   "mcp.tool.serviceStop.description": "停止 Sprak Capture 数据服务。",
   "mcp.tool.configGet.description": "获取 Sprak Capture 服务的公开配置。",
@@ -67,5 +68,6 @@
   "mcp.tool.transactionRepeatEdited.description": "使用编辑后的请求字段重复执行已录制的 HTTP 事务。",
   "mcp.tool.transactionRepeatAdvanced.description": "经明确确认后启动受限的高级重复任务。",
   "mcp.tool.pluginList.description": "列出已发现的插件。",
-  "mcp.tool.pluginSetEnabled.description": "启用或禁用一个插件。"
+  "mcp.tool.pluginSetEnabled.description": "启用或禁用一个插件。",
+  "mcp.tool.clientPackageGet.description": "获取 Android 客户端生成任务和最近的已签名 APK。"
 }

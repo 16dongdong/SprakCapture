@@ -18,12 +18,13 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    accountService::AccountTrafficLease,
     address::{AddressOverride, TargetAddress, TargetHost},
     config::Socks5Config,
     error::{Result, Socks5Error},
     model::TrafficDirection,
     protocol::{decodeUdpPacket, encodeUdpPacket},
-    registry::SessionRegistry,
+    registry::{ModifiedTraffic, SessionRegistry},
 };
 
 /// 远端 UDP 接收任务交付给关联循环的原始数据报。
@@ -46,6 +47,7 @@ pub struct UdpAssociationSession {
     pub cancellation: CancellationToken,
     pub pluginHost: PluginHost,
     pub clientAddress: String,
+    pub accountLease: Option<AccountTrafficLease>,
 }
 
 /// 管理按地址族复用的远端 UDP Socket，并把回包汇聚到关联事件循环。
@@ -99,7 +101,6 @@ impl RemoteSocketPool {
     }
 }
 
-/// 尝试把远端响应放入固定队列；队列已关闭返回 false，队列已满丢包计数后继续接收。
 /// 将远端数据报压入有界队列；队列满时计入丢包指标并继续接收，队列关闭时返回 false。
 pub fn queueRemoteDatagram(
     sender: &mpsc::Sender<RemoteDatagram>,
@@ -148,6 +149,48 @@ fn advertisedAddress(boundAddress: SocketAddr, controlLocal: SocketAddr) -> Sock
     }
 }
 
+/// 校验控制端声明并创建关联私有 UDP 端点；成功回复必须在绑定完成后发送，失败不返回伪造端点。
+async fn bindAssociationSocket(
+    controlStream: &mut TcpStream,
+    requestedClient: &TargetAddress,
+    context: &UdpAssociationContext,
+) -> Result<UdpSocket> {
+    timeout(
+        context.config.connectTimeout(),
+        validateClientTarget(requestedClient, context.controlPeer),
+    )
+    .await
+    .map_err(|_| Socks5Error::Timeout("UDP 客户端地址校验"))??;
+    let bindIp = if context.config.udpBindHost.is_empty() {
+        if context.controlPeer.is_ipv6() {
+            IpAddr::V6(Ipv6Addr::UNSPECIFIED)
+        } else {
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        }
+    } else {
+        context
+            .config
+            .udpBindHost
+            .parse()
+            .map_err(|_| Socks5Error::Configuration("udpBindHost 无效".to_owned()))?
+    };
+    let clientSocket = UdpSocket::bind(SocketAddr::new(bindIp, 0)).await?;
+    let boundAddress = advertisedAddress(clientSocket.local_addr()?, context.controlLocal);
+    crate::protocol::writeReply(controlStream, crate::protocol::replySucceeded, boundAddress)
+        .await?;
+    Ok(clientSocket)
+}
+
+/// 关闭关联创建的全部插件连接；逐个等待让插件能按连接维度提交最终状态。
+async fn closePluginConnections(
+    pluginHost: &PluginHost,
+    pluginConnections: HashMap<SocketAddr, PluginConnection>,
+) {
+    for connection in pluginConnections.into_values() {
+        pluginHost.closeDataPlaneConnection(connection).await;
+    }
+}
+
 /// 运行单个 UDP 关联；控制 TCP EOF、取消信号或传输错误都会释放关联私有资源。
 pub async fn runUdpAssociation(
     controlStream: &mut TcpStream,
@@ -155,9 +198,10 @@ pub async fn runUdpAssociation(
     context: UdpAssociationContext,
     session: UdpAssociationSession,
 ) -> Result<()> {
+    let clientSocket = bindAssociationSocket(controlStream, &requestedClient, &context).await?;
     let UdpAssociationContext {
         controlPeer,
-        controlLocal,
+        controlLocal: _,
         config,
         addressOverride,
     } = context;
@@ -167,33 +211,8 @@ pub async fn runUdpAssociation(
         cancellation,
         pluginHost,
         clientAddress: controlClientAddress,
+        accountLease,
     } = session;
-    timeout(
-        config.connectTimeout(),
-        validateClientTarget(&requestedClient, controlPeer),
-    )
-    .await
-    .map_err(|_| Socks5Error::Timeout("UDP 客户端地址校验"))??;
-    let clientBind = if config.udpBindHost.is_empty() {
-        if controlPeer.is_ipv6() {
-            SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0)
-        } else {
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0)
-        }
-    } else {
-        SocketAddr::new(
-            config
-                .udpBindHost
-                .parse()
-                .map_err(|_| Socks5Error::Configuration("udpBindHost 无效".to_owned()))?,
-            0,
-        )
-    };
-    let clientSocket = UdpSocket::bind(clientBind).await?;
-    let boundAddress = advertisedAddress(clientSocket.local_addr()?, controlLocal);
-    crate::protocol::writeReply(controlStream, crate::protocol::replySucceeded, boundAddress)
-        .await?;
-
     let (remoteSender, mut remoteReceiver) =
         mpsc::channel::<RemoteDatagram>(remoteResponseQueueCapacity);
     let mut remotePool = RemoteSocketPool::new(remoteSender, registry.clone());
@@ -279,9 +298,16 @@ pub async fn runUdpAssociation(
                     }
                     DataPlaneActionResult::Close => break Ok(()),
                 }
+                // 账号限速是流量策略而不是网络建立时限，必须在 connectTimeout 外等待，避免低带宽被误判丢包。
+                if let Some(lease) = &accountLease {
+                    lease.acquire(TrafficDirection::Up, packet.payload.len()).await?;
+                }
                 let sendResult = timeout(config.connectTimeout(), async {
                     let remoteSocket = remotePool.getSocket(targetAddress.is_ipv6()).await?;
                     remoteSocket.send_to(&packet.payload, targetAddress).await?;
+                    if let Some(lease) = &accountLease {
+                        lease.record(TrafficDirection::Up, packet.payload.len());
+                    }
                     Ok::<(), Socks5Error>(())
                 }).await;
                 if !matches!(sendResult, Ok(Ok(()))) {
@@ -303,12 +329,12 @@ pub async fn runUdpAssociation(
                 }
                 allowedRemoteAddresses.insert(targetAddress);
                 clientAddress = Some(source);
-                registry.addModifiedTraffic(
-                    &sessionId,
-                    TrafficDirection::Up,
-                    &originalPayload,
-                    &packet.payload,
-                );
+                registry.addModifiedTraffic(ModifiedTraffic {
+                    sessionId: &sessionId,
+                    direction: TrafficDirection::Up,
+                    originalPayload: &originalPayload,
+                    payload: &packet.payload,
+                });
                 registry.recordUdpPacket(TrafficDirection::Up);
             }
             remoteDatagram = remoteReceiver.recv() => {
@@ -346,19 +372,23 @@ pub async fn runUdpAssociation(
                     registry.recordDroppedUdpPacket();
                     continue;
                 }
+                if let Some(lease) = &accountLease {
+                    lease.acquire(TrafficDirection::Down, payload.len()).await?;
+                }
                 clientSocket.send_to(&responsePacket, clientAddress).await?;
-                registry.addModifiedTraffic(
-                    &sessionId,
-                    TrafficDirection::Down,
-                    &originalPayload,
-                    &payload,
-                );
+                if let Some(lease) = &accountLease {
+                    lease.record(TrafficDirection::Down, payload.len());
+                }
+                registry.addModifiedTraffic(ModifiedTraffic {
+                    sessionId: &sessionId,
+                    direction: TrafficDirection::Down,
+                    originalPayload: &originalPayload,
+                    payload: &payload,
+                });
                 registry.recordUdpPacket(TrafficDirection::Down);
             }
         }
     };
-    for connection in pluginConnections.into_values() {
-        pluginHost.closeDataPlaneConnection(connection).await;
-    }
+    closePluginConnections(&pluginHost, pluginConnections).await;
     result
 }

@@ -8,7 +8,6 @@ mod error;
 mod harExport;
 mod metadataBudget;
 mod model;
-mod recordingRules;
 mod recordingSession;
 mod responseEntity;
 
@@ -27,10 +26,6 @@ pub use model::{
     TransactionDetailRecord, TransactionError, TransactionFlags, TransactionProgressUpdate,
     TransactionProtocol, TransactionSizes, TransactionStatus, TransactionSummary,
     TransactionTimings, TransactionUpdate, TransactionUserUpdate, currentTimeMilliseconds,
-};
-pub use recordingRules::{
-    RecordingRule, RecordingRuleAction, RecordingRuleConfiguration, RecordingRuleError,
-    RecordingRuleKind, RecordingRuleRuntime, RecordingRuleSet,
 };
 pub use recordingSession::RecordingSession;
 pub use responseEntity::{responseContentRange, strongResponseEntityTag};

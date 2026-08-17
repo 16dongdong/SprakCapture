@@ -1,8 +1,8 @@
-﻿# Web 前端架构
+# Web 前端架构
 
 ## 唯一界面源
 
-`Server/Frontend/Web` 是浏览器模式和桌面模式共用的唯一 React 源码。Desktop 不得复制
+`Frontend/Web` 是浏览器模式和桌面模式共用的唯一 React 源码。Desktop 不得复制
 页面组件、状态仓库、主题或接口类型。
 
 ## 界面层级（必须遵守）

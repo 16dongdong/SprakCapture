@@ -22,7 +22,11 @@ import {
   IndependentSettingsWindowPage,
 } from "./pages/independentWindowPage";
 import { OverviewPage } from "./pages/overviewPage";
+import { AccountManagementPage } from "./pages/accountManagementPage";
 import { PluginManagerPage } from "./pages/pluginManagerPage";
+import { PluginWindowPage } from "./pages/pluginWindowPage";
+import { SettingsPage } from "./pages/settingsPage";
+import { shouldUseSameOriginControl } from "./api/controlEndpoint";
 import { useServiceStore } from "./state/serviceStore";
 
 /** 打开独立窗口并保留原生错误证据；入口不会回退到遮罩主窗口的旧实现。 */
@@ -47,6 +51,15 @@ function SettingsWindowRedirect() {
     navigate("/connections", { replace: true });
   }, [navigate, section]);
   return null;
+}
+
+/** 在远程浏览器内直接渲染设置，桌面端则保留原生独立窗口，避免同一入口产生两个界面。
+ *
+ * 运行上下文：主路由命中 `/settings/:section?` 时调用；远程入口没有 Tauri 窗口能力。
+ * 失败语义：环境判断只依赖当前协议和构建模式，不尝试弹窗失败后的重复兜底。
+ */
+function SettingsRoute() {
+  return shouldUseSameOriginControl() ? <SettingsPage /> : <SettingsWindowRedirect />;
 }
 
 /**
@@ -96,6 +109,7 @@ function MainWindowLayout() {
         <div className="routeTransition" key={location.pathname}>
           <Routes>
             <Route path="/overview" element={<OverviewPage />} />
+            <Route path="/account-management" element={<AccountManagementPage />} />
             <Route
               path="/connections"
               element={
@@ -115,14 +129,14 @@ function MainWindowLayout() {
             />
             <Route
               path="/settings/:section?"
-              element={<SettingsWindowRedirect />}
+              element={<SettingsRoute />}
             />
             <Route path="/plugins" element={<PluginManagerPage />} />
             <Route path="*" element={<Navigate replace to="/connections" />} />
           </Routes>
         </div>
       </div>
-      <ConnectionStatusBar />
+      {location.pathname === "/account-management" ? null : <ConnectionStatusBar />}
       <BackgroundWorkflowWindows />
     </div>
   );
@@ -134,9 +148,14 @@ export function App() {
     <Routes>
       <Route path="/floating" element={<FloatingWindowPage />} />
       <Route
+        path="/window/account-management"
+        element={<AccountManagementPage />}
+      />
+      <Route
         path="/window/settings/:section?"
         element={<IndependentSettingsWindowPage />}
       />
+      <Route path="/window/plugin/:pluginId" element={<PluginWindowPage />} />
       <Route
         path="/window/dialog/:dialogKind"
         element={<IndependentDialogWindowPage />}

@@ -1458,11 +1458,6 @@ body:has(.independentWindowSurface),
   padding-right: 8px;
 }
 
-.floatingPanel {
-  background: color-mix(in srgb, var(--gray-1) 88%, transparent);
-  backdrop-filter: blur(28px) saturate(150%);
-}
-
 @media (max-width: 900px) {
   .toolbarNavItem {
     min-width: 42px;

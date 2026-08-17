@@ -18,6 +18,11 @@ Server/Frontend/Desktop/src-tauri/gen/
 
 # 本地运行数据
 runtime/
+# Android 源码使用 runtime 作为稳定包名；只放行源码，运行期生成目录仍保持忽略。
+!Client/app/src/main/java/app/proxy/client/runtime/
+!Client/app/src/main/java/app/proxy/client/runtime/**
+!Client/app/src/test/java/app/proxy/client/runtime/
+!Client/app/src/test/java/app/proxy/client/runtime/**
 logs/
 temp/
 tmp/

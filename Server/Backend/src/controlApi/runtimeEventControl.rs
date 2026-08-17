@@ -237,10 +237,12 @@ pub(super) async fn forwardAdvancedRepeatEvents(
             }
         }
         let jobs = state.repeatRuntime.list().await;
-        state.publishRevisioned(|serverInstanceId, revision| EventMessage::AdvancedRepeats {
-            serverInstanceId,
-            revision,
-            jobs,
+        state.publishProjectionRevisioned(|serverInstanceId, revision| {
+            EventMessage::AdvancedRepeats {
+                serverInstanceId,
+                revision,
+                jobs,
+            }
         });
     }
 }
@@ -270,7 +272,7 @@ pub(super) async fn forwardPluginEvents(state: ControlState, mut changes: watch:
             }
         }
         let plugins = state.pluginHost.snapshots();
-        state.publishRevisioned(|serverInstanceId, revision| EventMessage::Plugins {
+        state.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Plugins {
             serverInstanceId,
             revision,
             plugins,

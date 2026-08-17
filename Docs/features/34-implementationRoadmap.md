@@ -1,4 +1,4 @@
-﻿# 实现路线图
+# 实现路线图
 
 > **可委派的任务切片**见 [`Docs/Plan/`](../Plan/README.md)（按 M1a→M6 拆分，供 Codex 分阶段开发）。
 
@@ -90,7 +90,7 @@
   - MCP：`Docs/Plan/MCP0-scaffold.md`、`00-mcpAndSkillSync.md`、`mcp/toolCatalog.md`
   - i18n：`Docs/Plan/I18N0-scaffold.md`、`00-i18nSync.md`、`i18n/localeCatalog.md`
 - **每完成用户可见/控制面能力 → 同交付 MCP + Skill + Tier-1 全语言文案**
-- MCP 无权限围栏；Skill 在 `Server/Skill/`
+- MCP 无权限围栏；Skill 在 `Skill/`
 - 一等语言：`en` `zh-Hans` `zh-Hant` `ja` `ko` `es` `fr` `de` `pt-BR` `ru`
 - MCP-0 / I18N-0 可与 M1a 并行
 

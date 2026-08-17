@@ -35,6 +35,7 @@ pub(crate) fn findAvailablePort() -> u16 {
 /// 创建无认证的完整公开配置；调用方只覆盖与当前用例相关的字段。
 pub(crate) fn configurationJson(listenPort: u16) -> Value {
     json!({
+        "startServiceOnLaunch": false,
         "listenHost": "127.0.0.1",
         "listenPort": listenPort,
         "authenticationMode": "none",
@@ -72,6 +73,11 @@ pub(crate) fn configurationJson(listenPort: u16) -> Value {
             "enabled": false,
             "processIds": [],
             "proxyPort": listenPort
+        },
+        "multiAccount": {
+            "enabled": false,
+            "remoteHost": "0.0.0.0",
+            "remotePort": 19090
         }
     })
 }

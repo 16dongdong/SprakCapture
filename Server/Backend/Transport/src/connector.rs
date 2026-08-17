@@ -1,15 +1,17 @@
-use std::{io, sync::Arc, time::Duration};
+use std::{collections::HashSet, io, sync::Arc, time::Duration};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    time::timeout,
+    net::{TcpStream, lookup_host},
+    task::JoinSet,
+    time::{Instant, sleep_until, timeout},
 };
 
 const maximumHttpConnectHeaderBytes: usize = 16 * 1024;
+const addressAttemptDelay: Duration = Duration::from_millis(250);
 
 /// 声明二级代理的线协议；HTTP 使用 CONNECT，因此明文与 TLS 目标共享同一条安全的隧道语义。
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -65,9 +67,9 @@ impl Default for UpstreamProxyConfiguration {
 pub enum OutboundConnectError {
     #[error("二级代理配置无效：{0}")]
     Configuration(String),
-    #[error("二级代理连接超时")]
+    #[error("出站连接超时")]
     Timeout,
-    #[error("二级代理 I/O 失败：{0}")]
+    #[error("出站连接 I/O 失败：{0}")]
     Io(#[from] io::Error),
     #[error("二级代理拒绝目标连接：{0}")]
     Rejected(String),
@@ -150,9 +152,9 @@ impl OutboundConnector {
         targetPort: u16,
     ) -> Result<TcpStream, OutboundConnectError> {
         let Some(upstream) = self.upstream.as_ref() else {
-            return Ok(TcpStream::connect((targetHost, targetPort)).await?);
+            return Ok(connectResolvedHost(targetHost, targetPort).await?);
         };
-        let mut stream = TcpStream::connect((upstream.host.as_str(), upstream.port)).await?;
+        let mut stream = connectResolvedHost(&upstream.host, upstream.port).await?;
         stream.set_nodelay(true)?;
         match upstream.protocol {
             UpstreamProxyProtocol::Http => {
@@ -164,6 +166,72 @@ impl OutboundConnector {
         }
         Ok(stream)
     }
+}
+
+/// 按 Happy Eyeballs 的节奏竞争主机地址，并返回最先成功的字节流。
+///
+/// 运行上下文：直连目标和二级代理端点共用此入口；后续候选每隔 250ms 才启动，既绕过黑洞地址，
+/// 也避免一次业务连接同时向同一站点制造多条成功连接而触发对端限流。
+/// 失败语义：解析为空或全部地址失败时返回最后一个网络错误；未完成的竞争连接会随任务集合释放而取消。
+async fn connectResolvedHost(targetHost: &str, targetPort: u16) -> io::Result<TcpStream> {
+    let addresses = lookup_host((targetHost, targetPort))
+        .await?
+        .collect::<Vec<_>>();
+    let addresses = deduplicateAddresses(addresses);
+    if addresses.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::AddrNotAvailable,
+            "目标主机没有可用地址",
+        ));
+    }
+    let mut addresses = addresses.into_iter();
+
+    let mut attempts = JoinSet::new();
+    attempts.spawn(TcpStream::connect(
+        addresses.next().expect("地址集合已确认非空"),
+    ));
+    let mut nextAttemptAt = Instant::now() + addressAttemptDelay;
+    let mut lastError = None;
+    loop {
+        if attempts.is_empty() {
+            let Some(address) = addresses.next() else {
+                break;
+            };
+            attempts.spawn(TcpStream::connect(address));
+            nextAttemptAt = Instant::now() + addressAttemptDelay;
+        }
+        tokio::select! {
+            result = attempts.join_next() => {
+                match result.expect("存在尚未完成的地址连接任务") {
+                    Ok(Ok(stream)) => return Ok(stream),
+                    Ok(Err(error)) => lastError = Some(error),
+                    Err(error) => {
+                        lastError = Some(io::Error::other(format!("连接任务异常结束：{error}")))
+                    }
+                }
+            }
+            _ = sleep_until(nextAttemptAt), if addresses.len() > 0 => {
+                attempts.spawn(TcpStream::connect(
+                    addresses.next().expect("分支只在仍有候选地址时执行"),
+                ));
+                nextAttemptAt = Instant::now() + addressAttemptDelay;
+            }
+        }
+    }
+    Err(lastError
+        .unwrap_or_else(|| io::Error::new(io::ErrorKind::AddrNotAvailable, "目标主机没有可用地址")))
+}
+
+/// 保留系统解析顺序并线性去重地址，避免排序破坏操作系统针对地址族给出的优先级。
+fn deduplicateAddresses(addresses: Vec<std::net::SocketAddr>) -> Vec<std::net::SocketAddr> {
+    let mut observedAddresses = HashSet::with_capacity(addresses.len());
+    let mut uniqueAddresses = Vec::with_capacity(addresses.len());
+    for address in addresses {
+        if observedAddresses.insert(address) {
+            uniqueAddresses.push(address);
+        }
+    }
+    uniqueAddresses
 }
 
 /// 使用 HTTP CONNECT 建立任意 TCP 隧道；响应头设置硬上限以抵御异常上游无限增长。

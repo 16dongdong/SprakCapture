@@ -67,11 +67,22 @@ describe("悬浮窗路由", () => {
     );
 
     expect(await screen.findByText("SOCKS5 127.0.0.1:1080")).toBeVisible();
-    expect(screen.getByText("流量捕获服务")).toBeVisible();
+    expect(screen.queryByText("流量捕获服务")).toBeNull();
     expect(screen.getByText("运行中")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "停止服务" }),
     ).toBeEnabled();
+    expect(document.querySelector(".floatingDragRegion")).not.toBeNull();
+    expect(
+      document.querySelectorAll(".floatingWindowActions .iconButton"),
+    ).toHaveLength(2);
+    expect(screen.getByText("活动").parentElement).toHaveTextContent("活动4");
+    expect(screen.getByText("上行").parentElement).toHaveTextContent(
+      "上行3.50 KiB",
+    );
+    expect(screen.getByText("下行").parentElement).toHaveTextContent(
+      "下行12.00 KiB",
+    );
     expect(screen.queryByRole("navigation", { name: "主导航" })).toBeNull();
   });
 
@@ -94,15 +105,10 @@ describe("悬浮窗路由", () => {
     expect(screen.getByText("已接受").parentElement).toHaveTextContent(
       "已接受7",
     );
-    expect(screen.getByText("上行流量").parentElement).toHaveTextContent(
-      "上行流量3.50 KiB",
-    );
-    expect(screen.getByText("下行流量").parentElement).toHaveTextContent(
-      "下行流量12.00 KiB",
-    );
-    expect(screen.getByText("会话记录").parentElement).toHaveTextContent(
-      "会话记录7",
-    );
+    expect(screen.queryByText("失败连接")).toBeNull();
+    expect(screen.queryByText("上行流量")).toBeNull();
+    expect(screen.queryByText("下行流量")).toBeNull();
+    expect(screen.queryByText("会话记录")).toBeNull();
   });
 
   it("概览页逐帧呈现事件流指标而不等待定时刷新", async () => {
@@ -163,15 +169,9 @@ describe("悬浮窗路由", () => {
     expect(screen.getByText("已接受").parentElement).toHaveTextContent(
       "已接受9",
     );
-    expect(screen.getByText("失败连接").parentElement).toHaveTextContent(
-      "失败连接2",
-    );
-    expect(screen.getByText("上行流量").parentElement).toHaveTextContent(
-      "上行流量2.00 KiB",
-    );
-    expect(screen.getByText("下行流量").parentElement).toHaveTextContent(
-      "下行流量8.00 KiB",
-    );
+    expect(screen.queryByText("失败连接")).toBeNull();
+    expect(screen.queryByText("上行流量")).toBeNull();
+    expect(screen.queryByText("下行流量")).toBeNull();
 
     act(() => {
       eventCallbacks?.onMessage({
@@ -194,11 +194,68 @@ describe("悬浮窗路由", () => {
     expect(screen.getByText("已接受").parentElement).toHaveTextContent(
       "已接受14",
     );
-    expect(screen.getByText("上行流量").parentElement).toHaveTextContent(
-      "上行流量3.00 KiB",
+    expect(screen.queryByText("失败连接")).toBeNull();
+    expect(screen.queryByText("上行流量")).toBeNull();
+    expect(screen.queryByText("下行流量")).toBeNull();
+  });
+
+  it("悬浮窗逐帧合并 WinDivert 指标而不显示代理侧零值", async () => {
+    const snapshot = createServiceSnapshot({
+      serviceState: "running",
+      metrics: {
+        acceptedConnections: 0,
+        activeConnections: 0,
+        failedConnections: 0,
+        bytesUp: 0,
+        bytesDown: 0,
+        udpPacketsUp: 0,
+        udpPacketsDown: 0,
+        droppedUdpPackets: 0,
+      },
+    });
+    let eventCallbacks: EventClientCallbacks | null = null;
+    const eventClient: EventStreamClient = {
+      start(callbacks) {
+        eventCallbacks = callbacks;
+        callbacks.onConnectionState("connected", "事件流已连接");
+      },
+      stop() {},
+    };
+    render(
+      <MemoryRouter initialEntries={["/floating"]}>
+        <ServiceProvider
+          controlClient={createControlClientStub(snapshot)}
+          eventClient={eventClient}
+        >
+          <App />
+        </ServiceProvider>
+      </MemoryRouter>,
     );
-    expect(screen.getByText("下行流量").parentElement).toHaveTextContent(
-      "下行流量12.00 KiB",
+
+    await screen.findByText("Sprak Capture");
+    await waitFor(() => expect(eventCallbacks).not.toBeNull());
+    act(() => {
+      eventCallbacks?.onMessage({
+        type: "processCapture",
+        serverInstanceId: snapshot.serverInstanceId,
+        revision: 2,
+        processCapture: {
+          ...snapshot.processCapture,
+          running: true,
+          trackedFlows: 3,
+          acceptedConnections: 5,
+          bytesUp: 2048,
+          bytesDown: 8192,
+        },
+      });
+    });
+
+    expect(screen.getByText("活动").parentElement).toHaveTextContent("活动3");
+    expect(screen.getByText("上行").parentElement).toHaveTextContent(
+      "上行2.00 KiB",
+    );
+    expect(screen.getByText("下行").parentElement).toHaveTextContent(
+      "下行8.00 KiB",
     );
   });
 });

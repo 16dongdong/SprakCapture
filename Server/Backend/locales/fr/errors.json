@@ -53,5 +53,10 @@
   "error.pluginOperationFailed": "L’opération du plugin a échoué.",
   "error.invalidProcessSelectionRequest": "The process selection request is invalid.",
   "error.processSelectionOperationFailed": "Failed to save or apply the process selection: {{detail}}",
-  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}"
+  "error.configurationPersistenceFailed": "Failed to save the configuration file: {{detail}}",
+  "error.clientPackageBusy": "A client package build is already running.",
+  "error.clientPackageAuthenticationFailed": "Le compte ou le mot de passe SOCKS5 est invalide.",
+  "error.clientPackageServiceUnavailable": "Le service de comptes ou de règles distantes est indisponible.",
+  "error.clientPackageOperationFailed": "The client package operation failed.",
+  "error.clientNodeUnavailable": "No local network address reachable by the Android device was found."
 }

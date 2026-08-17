@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm --dir ../Web dev",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "pnpm --dir ../Web build",
+    "beforeBuildCommand": "",
     "frontendDist": "../../Web/dist"
   },
   "app": {
@@ -38,32 +38,34 @@
         "label": "floating",
         "title": "Sprak Capture 悬浮面板",
         "url": "/floating",
-        "width": 420,
-        "height": 320,
-        "minWidth": 360,
-        "minHeight": 260,
-        "maxWidth": 520,
-        "maxHeight": 420,
+        "width": 340,
+        "height": 250,
+        "minWidth": 320,
+        "minHeight": 230,
+        "maxWidth": 420,
+        "maxHeight": 320,
         "visible": false,
         "preventOverflow": true,
         "focusable": true,
-        "transparent": false,
+        "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "decorations": true,
+        "decorations": false,
         "resizable": true,
         "maximizable": false,
         "minimizable": false,
         "closable": true,
         "shadow": true,
-        "titleBarStyle": "Transparent",
-        "hiddenTitle": true,
         "acceptFirstMouse": true,
-        "backgroundColor": "#eef0f3"
+        "backgroundColor": "#00000000",
+        "windowEffects": {
+          "effects": ["acrylic"],
+          "color": "#eef4ffb8"
+        }
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {
@@ -73,7 +75,15 @@
     "longDescription": "统一处理 HTTP、SOCKS5 与 WinDivert 流量，提供实时录制、协议分析和封包规则。",
     "licenseFile": "../../../../LICENSE",
     "resources": {
-      "resources/*": "",
+      "resources/proxyService.exe": "proxyService.exe",
+      "resources/accountService.exe": "accountService.exe",
+      "resources/clientPackager.exe": "clientPackager.exe",
+      "resources/clientTemplate.apk": "clientTemplate.apk",
+      "resources/desktopResourceManifest.json": "desktopResourceManifest.json",
+      "resources/index.html": "index.html",
+      "resources/favicon.svg": "favicon.svg",
+      "resources/assets/*": "assets/",
+      "resources/assets/toolbar/*": "assets/toolbar/",
       "../../../Backend/ProcessCapture/vendor/LICENSE.WinDivert.txt": "",
       "../../../Backend/ProcessCapture/vendor/WinDivert.dll": "",
       "../../../Backend/ProcessCapture/vendor/WinDivert64.sys": ""
@@ -90,7 +100,8 @@
       "nsis": {
         "displayLanguageSelector": true,
         "installMode": "both",
-        "languages": ["SimpChinese", "English"]
+        "languages": ["SimpChinese", "English"],
+        "installerHooks": "./windows/installerHooks.nsh"
       }
     }
   }

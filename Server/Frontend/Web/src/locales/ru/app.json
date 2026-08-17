@@ -102,7 +102,14 @@
       "controlApi": "Control API",
       "eventApi": "Event stream",
       "detail": "Details",
-      "processCaptureStartFailed": "Захват процессов не смог загрузить WinDivert. Запустите службу прокси от имени администратора и проверьте WinDivert64.sys."
+      "processCaptureStartFailed": "Захват процессов не смог загрузить WinDivert. Запустите службу прокси от имени администратора и проверьте WinDivert64.sys.",
+      "multiAccountTitle": "SOCKS5 account service",
+      "multiAccountDescription": "Online accounts, connections, and aggregate real-time bandwidth",
+      "openMultiAccountManagement": "Open account management",
+      "onlineAccounts": "Online accounts",
+      "accountConnections": "Connections",
+      "realtimeUpload": "Live upload",
+      "realtimeDownload": "Live download"
     },
     "settings": {
       "title": "Настройки",
@@ -111,16 +118,33 @@
       "unavailableHint": "Connect to GET /api/v1/snapshot before editing.",
       "description": "Listening, authentication, connection limits, and timeouts",
       "restartHint": "Applying configuration disconnects current proxy connections and restarts the service.",
+      "multiAccountGroup": "Remote management",
+      "descriptionMultiAccount": "Configure remote access to the Sprak Capture Web workspace and its shared administrator identity.",
+      "multiAccountEnabled": "Enable remote management",
+      "multiAccountEnabledHint": "Allows browser access to the complete workspace and enables independent SOCKS5 account authentication.",
+      "multiAccountHost": "Remote listen address",
+      "multiAccountPort": "Remote management port",
+      "multiAccountState": "Service status",
+      "multiAccountKeyPrefix": "API Key fingerprint",
+      "multiAccountOverridesAuthentication": "Independent account authentication is active",
+      "multiAccountOverridesAuthenticationHint": "Disable remote management to edit the saved single-account authentication mode.",
+      "multiAccountState_stopped": "Stopped",
+      "multiAccountState_starting": "Starting",
+      "multiAccountState_running": "Running",
+      "multiAccountState_stopping": "Stopping",
+      "multiAccountState_faulted": "Faulted",
       "listenGroup": "Proxy settings",
       "listenHost": "Listen address",
       "listenPort": "Listen port",
       "udpBindHost": "UDP bind address",
       "udpBindHostPlaceholder": "Leave empty to follow the listener policy",
+      "startServiceOnLaunch": "Start service automatically",
+      "startServiceOnLaunchHint": "Start the HTTP / SOCKS5 listener when the control process launches.",
       "authenticationGroup": "Authentication",
       "authenticationMode": "Authentication mode",
       "authenticationNone": "No authentication",
       "authenticationPassword": "Username and password",
-    "authenticationPlugin": "Plugin-managed",
+      "authenticationPlugin": "Plugin-managed",
       "username": "Username",
       "newPassword": "New password",
       "capacityGroup": "Capacity and timeouts",
@@ -169,7 +193,23 @@
       "mcpEnabled": "Enable MCP",
       "mcpEnabledHint": "Listens on loopback only and persists with the installation data configuration.",
       "mcpPort": "MCP port",
-      "mcpEndpoint": "Endpoint"
+      "mcpEndpoint": "Endpoint",
+      "managementIdentityGroup": "Administrator credentials",
+      "managementIdentityWarning": "Changing credentials rotates the API Key and invalidates existing management sessions.",
+      "managementCurrentUsername": "Current administrator",
+      "managementNewUsername": "New administrator username",
+      "managementNewPassword": "New administrator password",
+      "managementUpdateIdentity": "Save administrator credentials",
+      "managementApiKeyGroup": "Automation API Key",
+      "managementApiKeyHint": "The API Key is deterministically derived from the current administrator credentials and is never written to snapshots or logs.",
+      "managementGetApiKey": "Get and copy API Key",
+      "managementApiKeyResult": "API Key",
+      "managementApiKeyOneTimeHint": "The full Key is shown only in this dialog.",
+      "managementFullApiKey": "Full API Key",
+      "managementApiKeyCopied": "API Key copied",
+      "managementCopyApiKey": "Copy API Key",
+      "managementDone": "Done",
+      "managementCloseSecret": "Close"
     },
     "processManager": {
       "title": "Process manager",
@@ -187,10 +227,26 @@
       "running": "Running · PID {{pids}}",
       "notRunning": "Not running; path remembered",
       "remove": "Remove {{path}}"
+    },
+    "accountManagement": {
+      "title": "Account management",
+      "loading": "Creating the account management session…"
+    },
+    "remoteLogin": {
+      "title": "Sprak Capture remote management",
+      "description": "Sign in with the same administrator credentials used by SOCKS5 account management.",
+      "checking": "Checking the sign-in session…",
+      "username": "Administrator username",
+      "password": "Administrator password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "failed": "Sign-in failed. Check the username and password.",
+      "logout": "Sign out"
     }
   },
   "floating": {
     "openMainWindow": "Open main window",
+    "close": "Close floating panel",
     "controlConnected": "Control API connected",
     "controlDisconnected": "Control API disconnected",
     "disconnected": "Disconnected",
@@ -621,7 +677,6 @@
     },
     "names": {
       "blockList": "Список блокировки",
-      "recordingRules": "Recording rule sets",
       "noCaching": "Без кэша",
       "blockCookies": "Блокировать cookie",
       "mapLocal": "Локальное сопоставление",
@@ -633,50 +688,6 @@
       "autoSave": "Automatic save",
       "dnsSpoofing": "Перенаправление DNS",
       "packetFilters": "Packet filters"
-    },
-    "recordingRules": {
-      "title": "Recording rule sets",
-      "defaultAction": "When no rule matches",
-      "orderHint": "The first enabled rule wins; changes apply without restarting the service.",
-      "addSet": "Add rule set",
-      "removeSet": "Remove rule set",
-      "empty": "No rule sets. Add one to begin.",
-      "defaultSetName": "Rule set {{sequence}}",
-      "setName": "Rule set name",
-      "ruleDialogTitle": "Add recording rule",
-      "condition": "Match condition",
-      "value": "Match value",
-      "action": "Action",
-      "rejectHint": "REJECT blocks HTTP, HTTPS, and WinDivert transparent TCP. Passively observed UDP is excluded from recording without altering the datagram.",
-      "actions": {
-        "record": "Record",
-        "doNotRecord": "Do not record",
-        "reject": "Reject"
-      },
-      "kinds": {
-        "domain": "Exact domain",
-        "domainSuffix": "Domain suffix",
-        "domainKeyword": "Domain keyword",
-        "destinationIpCidr": "Destination IP/CIDR",
-        "clientIpCidr": "Client IP/CIDR",
-        "port": "Destination port",
-        "processName": "Process name",
-        "protocol": "Protocol",
-        "method": "HTTP method",
-        "match": "All traffic"
-      },
-      "placeholders": {
-        "domain": "example.com",
-        "domainSuffix": "example.com",
-        "domainKeyword": "music",
-        "destinationIpCidr": "192.0.2.0/24",
-        "clientIpCidr": "127.0.0.1/32",
-        "port": "443 or 8000-9000",
-        "processName": "example.exe",
-        "protocol": "http, https, tcp, or udp",
-        "method": "GET",
-        "match": "No value required"
-      }
     },
     "export": {
       "title": "Экспорт записи",
@@ -989,6 +1000,12 @@
     "open": "Plugins",
     "title": "Plugins",
     "description": "Install, enable, and configure local Native plugins. The traffic hot path always runs inside the host process.",
+    "openWindow": "Open plugin window",
+    "windowDescription": "Plugin UI opens in its own window and does not occupy the main workspace.",
+    "windowEyebrow": "Plugin window",
+    "windowTitle": "Plugin",
+    "closeWindow": "Close",
+    "noWindowUi": "This plugin does not declare an independent configuration UI.",
     "refresh": "Refresh plugins",
     "install": "Install plugin package…",
     "loading": "Loading plugins…",
@@ -1019,5 +1036,13 @@
       "failed": "Failed",
       "incompatible": "Incompatible"
     }
+  },
+  "desktopClose": {
+    "title": "Close main window",
+    "question": "Run in the system tray?",
+    "remember": "Remember my choice",
+    "yes": "Yes",
+    "no": "No",
+    "processing": "Processing"
   }
 }

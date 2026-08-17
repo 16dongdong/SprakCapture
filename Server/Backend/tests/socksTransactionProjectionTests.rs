@@ -164,6 +164,52 @@ async fn activeRawTlsSessionPublishesPacketsBeforeClose() {
     assert_eq!(detail.responseBody.expect("响应正文").storedBytes, 8);
 }
 
+/// 验证排队事件共享的正文镜像继续增长时，投影只提交事件自己的字节水位和片段范围。
+/// 该竞争曾让新片段越过已写正文并返回 captureInvalidBodyLength，最终事务无法进入完成态。
+#[tokio::test]
+async fn queuedSnapshotIgnoresTrafficAppendedAfterItsEventWatermark() {
+    let recording = recordingSession().await;
+    let mut projector = SocksTransactionProjector::new(recording.clone(), 16);
+    let registry = SessionRegistry::withCaptureBudget(8, 64 * 1024);
+    let sessionId = registry.create("127.0.0.1:50000".to_owned());
+    assert!(registry.update(
+        &sessionId,
+        SessionUpdate {
+            username: None,
+            command: Some("connect".to_owned()),
+            targetAddress: Some("example.com:443".to_owned()),
+            applicationProtocol: Some(SessionApplicationProtocol::Tls),
+            state: SessionState::Relaying,
+        },
+    ));
+    projector
+        .project(&registry.snapshots().pop().expect("初始活动会话"))
+        .await
+        .expect("创建活动事务");
+
+    registry.addTraffic(&sessionId, TrafficDirection::Up, b"first");
+    let queuedSnapshot = registry.snapshots().pop().expect("排队事件快照");
+    registry.addTraffic(&sessionId, TrafficDirection::Up, b"second");
+    projector
+        .project(&queuedSnapshot)
+        .await
+        .expect("共享镜像增长不得破坏旧事件投影");
+
+    let transaction = recording
+        .listMetadata()
+        .await
+        .expect("读取活动事务")
+        .pop()
+        .expect("活动事务");
+    let detail = recording
+        .getTransactionDetail(&transaction.transactionId)
+        .await
+        .expect("读取活动事务详情");
+    assert_eq!(detail.requestBody.expect("请求正文").storedBytes, 5);
+    assert_eq!(detail.requestPackets.len(), 1);
+    assert_eq!(detail.requestPackets[0].storedBytes, 5);
+}
+
 /// 验证失败连接保留 SOCKS 专用机器码，且重复终态事件不会创建第二条事务。
 #[tokio::test]
 async fn failedSessionProjectsOnceWithStableError() {
@@ -188,6 +234,43 @@ async fn failedSessionProjectsOnceWithStableError() {
     assert_eq!(transaction.status, TransactionStatus::Failed);
     assert_eq!(
         transaction.error.as_ref().map(|error| error.code.as_str()),
+        Some("socksSessionFailed")
+    );
+}
+
+/// 验证目标已经解析、但在首段协议分类前失败的连接仍生成一条可见失败事务。
+/// 这覆盖连接超时、分类读取错误等过去只留在会话诊断、完全不进入事务树的路径。
+#[tokio::test]
+async fn failedUnclassifiedSessionRemainsVisible() {
+    let recording = recordingSession().await;
+    let mut projector = SocksTransactionProjector::new(recording.clone(), 16);
+    let mut session = sessionSnapshot("connect", "unclassified.example:443");
+    session.applicationProtocol = SessionApplicationProtocol::Undetermined;
+    session.state = SessionState::Failed;
+    session.errorMessage = "连接阶段失败".to_owned();
+    session.closedAtMilliseconds = 1_250;
+    session.updatedAtMilliseconds = 1_250;
+
+    projector
+        .project(&session)
+        .await
+        .expect("未分类失败必须进入事务树");
+
+    let page = recording
+        .pageView(None, 10, None)
+        .await
+        .expect("读取未分类失败事务");
+    assert_eq!(page.total, 1);
+    assert_eq!(page.transactions[0].status, TransactionStatus::Failed);
+    assert_eq!(
+        page.transactions[0].urlDisplay,
+        "tcp://unclassified.example:443"
+    );
+    assert_eq!(
+        page.transactions[0]
+            .error
+            .as_ref()
+            .map(|error| error.code.as_str()),
         Some("socksSessionFailed")
     );
 }

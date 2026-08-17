@@ -11,6 +11,8 @@ pub enum Socks5Error {
     Io(#[from] io::Error),
     #[error("{0}超时")]
     Timeout(&'static str),
+    #[error("TCP 转发空闲超时")]
+    RelayIdleTimeout,
     #[error("SOCKS 版本不受支持：{0}")]
     UnsupportedVersion(u8),
     #[error("客户端未提供可接受的认证方法")]
@@ -37,6 +39,27 @@ pub enum Socks5Error {
     PluginClosed,
     #[error("服务任务提前结束：{0}")]
     Runtime(String),
+}
+
+impl Socks5Error {
+    /// 判断已建立 TCP 转发是否因空闲回收、常见半关闭或对端复位而自然结束。
+    /// 该判断只允许在成功发送 SOCKS 响应并进入 Relaying 后使用；认证、建连、协议超时和插件错误仍保持失败。
+    pub fn isNormalRelayTermination(&self) -> bool {
+        if matches!(self, Self::RelayIdleTimeout) {
+            return true;
+        }
+        let Self::Io(error) = self else {
+            return false;
+        };
+        matches!(
+            error.kind(),
+            io::ErrorKind::BrokenPipe
+                | io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::NotConnected
+                | io::ErrorKind::UnexpectedEof
+        )
+    }
 }
 
 /// 库公开结果别名，调用方无需重复声明错误类型。

@@ -4,16 +4,15 @@ use std::{
     path::{Path as FileSystemPath, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::STANDARD as base64Standard};
 use capture_core::{
-    BodyResponse, MessageSide, RecordingConfiguration, RecordingPageView, RecordingRuleAction,
-    RecordingSession, RecordingSettingsUpdate, RecordingSnapshot, RecordingState,
-    TransactionDetailRecord,
+    BodyResponse, MessageSide, RecordingConfiguration, RecordingPageView, RecordingSession,
+    RecordingSettingsUpdate, RecordingSnapshot, RecordingState, TransactionDetailRecord,
 };
 use http_proxy_core::{
     AuxiliaryListenerConfiguration, DnsSpoofingTool, HttpProxyConfig, HttpProxyDependencies,
@@ -31,8 +30,9 @@ use socks5_core::interception::{
     PortProtocolHandler, TcpTunnel, TcpTunnelDisposition, TcpTunnelInterceptor,
 };
 use socks5_core::{
-    AddressOverride, AuthenticationMode, CaptureGeneration, RunningServer, ServerSnapshot,
-    ServiceMetrics, SessionSnapshot, SessionState, Socks5Config, model::currentTimeMilliseconds,
+    AccountServiceClientConfig, AddressOverride, AuthenticationMode, CaptureGeneration,
+    FusedProxyDependencies, FusedProxyOptions, RunningServer, ServerSnapshot, ServiceMetrics,
+    SessionSnapshot, SessionState, Socks5Config, model::currentTimeMilliseconds,
     startFusedProxyServer,
 };
 use tokio::{
@@ -53,14 +53,21 @@ use crate::transparentRecording::TransparentRecording;
 /// 把 HTTP 工具层的 DNS 规则适配到 SOCKS5 核心的最小解析接口，避免两个数据面复制配置。
 struct SocksDnsOverride {
     tool: Arc<DnsSpoofingTool>,
+    ruleServiceIp: Option<IpAddr>,
 }
 
 impl AddressOverride for SocksDnsOverride {
     /// 返回当前热更新快照命中的 IP；未命中时由 SOCKS5 核心继续使用系统 DNS。
     fn resolveIp(&self, host: &str) -> Option<IpAddr> {
+        if host.eq_ignore_ascii_case(clientRulesHost) {
+            return self.ruleServiceIp;
+        }
         self.tool.resolveIp(host)
     }
 }
+
+/// APK 仅通过已认证 SOCKS5 访问此保留域名；服务端把它解析到本机规则服务，避免依赖公网 NAT 回流。
+const clientRulesHost: &str = "client-rules.internal.invalid";
 
 /// 把普通 HTTP 连接与 WinDivert 透明连接汇入同一个端口，并以流表原目标优先于载荷分类。
 struct UnifiedProtocolHandler {
@@ -121,31 +128,6 @@ impl PortProtocolHandler for UnifiedProtocolHandler {
                 .unwrap_or_else(|_| targetIp.to_string());
             let directTarget = targetIp.to_string();
             let processName = clientProcess.as_ref().map(|process| process.name.clone());
-            if transparentRecording.decision(
-                clientAddress,
-                processName.clone(),
-                originalTarget.processId,
-                &targetHost,
-                targetPort,
-            ) == RecordingRuleAction::Reject
-            {
-                if let Err(error) = transparentRecording
-                    .recordRejected(
-                        clientAddress,
-                        processName,
-                        originalTarget.processId,
-                        &targetHost,
-                        targetPort,
-                    )
-                    .await
-                {
-                    eprintln!(
-                        "透明连接拒绝事务记录失败：code={}, operation=recordingRuleReject",
-                        error.code()
-                    );
-                }
-                return;
-            }
             let Ok(remoteStream) = outbound.connect(&directTarget, targetPort).await else {
                 return;
             };
@@ -160,6 +142,8 @@ impl PortProtocolHandler for UnifiedProtocolHandler {
                 routePinned: true,
                 targetPort,
                 cancellation,
+                // WinDivert 透明连接不经过 SOCKS 认证，因此不存在可计费账号租约。
+                accountLease: None,
             };
             // 透明 Raw/RawTls 过去直接复制套接字，既绕过事务模型又把连接错误静默吞掉；
             // 现在统一交给增量 spool 录制器，并为分类、录制失败保留稳定诊断而不暴露本机路径。
@@ -178,7 +162,7 @@ impl PortProtocolHandler for UnifiedProtocolHandler {
                         );
                     }
                 }
-                Ok(TcpTunnelDisposition::Handled(_)) => {}
+                Ok(TcpTunnelDisposition::Handled(_) | TcpTunnelDisposition::Failed { .. }) => {}
                 Err(error) => {
                     eprintln!(
                         "透明流协议分类失败：code=transparentClassificationFailed, kind={:?}",
@@ -236,7 +220,12 @@ const snapshotTransactionLimit: usize = 500;
 const maximumTransactionPageSize: usize = 1_000;
 const defaultTransactionPageSize: usize = 200;
 
+mod accountRecovery;
+mod accountServiceControl;
+mod accountServiceMapping;
+mod accountServiceSupervisor;
 mod applicationBodyDecoder;
+mod clientPackageControl;
 mod dataDirectory;
 mod httpControl;
 mod initialization;
@@ -251,9 +240,12 @@ mod processIcon;
 mod protocolControl;
 mod repeatControl;
 mod runtimeEventControl;
+mod serviceStartup;
 mod serviceState;
 mod sslControl;
+mod stateProjection;
 mod toolControl;
+mod uiContextControl;
 pub use httpControl::{ApiError, EventMessage, createControlRouter};
 use httpControl::{
     DecodedBodyResponse, EncodedBodyResponse, LocalizedApiError, RecordingResponse,
@@ -266,6 +258,10 @@ use runtimeEventControl::{
     releaseExitedCaptureGeneration, waitForControlShutdown, waitForServerExit,
 };
 
+pub use accountServiceSupervisor::{
+    AccountServiceState, MultiAccountPublicState, MultiAccountSummary,
+};
+use accountServiceSupervisor::{AccountServiceSupervisor, MultiAccountConfiguration};
 pub use initialization::ControlInitializationError;
 pub use serviceState::ServiceState;
 pub use toolControl::ToolsPublicState;
@@ -283,6 +279,7 @@ pub enum PublicAuthenticationMode {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicConfiguration {
+    pub startServiceOnLaunch: bool,
     pub listenHost: String,
     pub listenPort: u16,
     pub authenticationMode: PublicAuthenticationMode,
@@ -299,6 +296,7 @@ pub struct PublicConfiguration {
     pub httpProxy: PublicHttpProxyConfiguration,
     pub upstreamProxy: PublicUpstreamProxyConfiguration,
     pub processCapture: ProcessCaptureConfiguration,
+    pub multiAccount: MultiAccountPublicState,
 }
 
 /// 返回不含二级代理口令的公开配置；`hasPassword` 仅帮助界面保留现有凭据。
@@ -389,6 +387,8 @@ pub struct CredentialsUpdate {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConfigurationUpdate {
+    #[serde(default)]
+    pub startServiceOnLaunch: bool,
     pub listenHost: String,
     pub listenPort: u16,
     pub authenticationMode: PublicAuthenticationMode,
@@ -406,6 +406,19 @@ pub struct ConfigurationUpdate {
     pub httpProxy: PublicHttpProxyConfiguration,
     pub upstreamProxy: UpstreamProxyUpdate,
     pub processCapture: ProcessCaptureConfiguration,
+    #[serde(default)]
+    pub multiAccount: MultiAccountConfiguration,
+}
+
+/// 聚合 SOCKS、HTTP、进程捕获与启动偏好，供公开投影和持久化投影共享同一配置边界。
+///
+/// 该对象只借用已经完成校验的内部状态，不改变任何协议字段；收拢参数可避免调用方交换同类型配置，
+/// 并确保以后扩展核心配置时由编译器要求所有投影入口同步更新。
+struct ConfigurationProjectionSource<'a> {
+    socks5: &'a Socks5Config,
+    http: &'a ManagedHttpProxyConfiguration,
+    processCapture: &'a ProcessCaptureConfiguration,
+    startServiceOnLaunch: bool,
 }
 
 /// 反序列化协议中必填但可为 null 的 credentials 字段；字段缺失由 Serde 明确拒绝。
@@ -421,20 +434,27 @@ where
 impl PublicConfiguration {
     /// 从内部配置生成脱敏响应；用户名排序保证快照稳定。
     fn fromInternal(
-        configuration: &Socks5Config,
-        httpConfiguration: &ManagedHttpProxyConfiguration,
-        processCapture: &ProcessCaptureConfiguration,
+        source: ConfigurationProjectionSource<'_>,
+        multiAccount: MultiAccountPublicState,
     ) -> Self {
+        let ConfigurationProjectionSource {
+            socks5: configuration,
+            http: httpConfiguration,
+            processCapture,
+            startServiceOnLaunch,
+        } = source;
         let mut authenticationUsernames: Vec<String> =
             configuration.users.keys().cloned().collect();
         authenticationUsernames.sort();
         Self {
+            startServiceOnLaunch,
             listenHost: configuration.listenHost.to_string(),
             listenPort: configuration.listenPort,
             authenticationMode: match configuration.authenticationMode {
                 AuthenticationMode::NoAuth => PublicAuthenticationMode::None,
                 AuthenticationMode::UsernamePassword => PublicAuthenticationMode::Password,
                 AuthenticationMode::Plugin => PublicAuthenticationMode::Plugin,
+                AuthenticationMode::AccountService => PublicAuthenticationMode::Password,
             },
             authenticationUsernames,
             maxConnections: configuration.maxConnections,
@@ -451,6 +471,7 @@ impl PublicConfiguration {
                 &httpConfiguration.configuration.upstreamProxy,
             ),
             processCapture: processCapture.clone(),
+            multiAccount,
         }
     }
 }
@@ -472,12 +493,15 @@ impl PublicUpstreamProxyConfiguration {
 impl ConfigurationUpdate {
     /// 从已验证的内部状态生成可持久化配置；与公开快照不同，该结构保留认证与二级代理口令。
     fn fromInternal(
-        configuration: &Socks5Config,
-        httpConfiguration: &ManagedHttpProxyConfiguration,
-        processCapture: &ProcessCaptureConfiguration,
+        source: ConfigurationProjectionSource<'_>,
+        multiAccount: MultiAccountConfiguration,
     ) -> Self {
-        let public =
-            PublicConfiguration::fromInternal(configuration, httpConfiguration, processCapture);
+        let ConfigurationProjectionSource {
+            socks5: configuration,
+            http: httpConfiguration,
+            processCapture,
+            startServiceOnLaunch,
+        } = source;
         let credentials = configuration
             .users
             .iter()
@@ -487,20 +511,26 @@ impl ConfigurationUpdate {
                 password: password.clone(),
             });
         Self {
-            listenHost: public.listenHost,
-            listenPort: public.listenPort,
-            authenticationMode: public.authenticationMode,
-            maxConnections: public.maxConnections,
-            connectTimeout: public.connectTimeout,
-            bindTimeout: public.bindTimeout,
-            idleTimeout: public.idleTimeout,
-            shutdownTimeout: public.shutdownTimeout,
-            readTimeout: public.readTimeout,
-            relayBufferSize: public.relayBufferSize,
-            udpBindHost: public.udpBindHost,
-            udpMaxPacketSize: public.udpMaxPacketSize,
+            startServiceOnLaunch,
+            listenHost: configuration.listenHost.to_string(),
+            listenPort: configuration.listenPort,
+            authenticationMode: match configuration.authenticationMode {
+                AuthenticationMode::NoAuth => PublicAuthenticationMode::None,
+                AuthenticationMode::UsernamePassword => PublicAuthenticationMode::Password,
+                AuthenticationMode::Plugin => PublicAuthenticationMode::Plugin,
+                AuthenticationMode::AccountService => PublicAuthenticationMode::Password,
+            },
+            maxConnections: configuration.maxConnections,
+            connectTimeout: millisecondsToSeconds(configuration.connectTimeoutMilliseconds),
+            bindTimeout: millisecondsToSeconds(configuration.bindTimeoutMilliseconds),
+            idleTimeout: millisecondsToSeconds(configuration.idleTimeoutMilliseconds),
+            shutdownTimeout: millisecondsToSeconds(configuration.shutdownTimeoutMilliseconds),
+            readTimeout: millisecondsToSeconds(configuration.readTimeoutMilliseconds),
+            relayBufferSize: configuration.relayBufferSize,
+            udpBindHost: configuration.udpBindHost.clone(),
+            udpMaxPacketSize: configuration.udpMaxPacketSize,
             credentials,
-            httpProxy: public.httpProxy,
+            httpProxy: PublicHttpProxyConfiguration::fromInternal(httpConfiguration),
             upstreamProxy: UpstreamProxyUpdate {
                 enabled: httpConfiguration.configuration.upstreamProxy.enabled,
                 protocol: httpConfiguration.configuration.upstreamProxy.protocol,
@@ -520,6 +550,7 @@ impl ConfigurationUpdate {
                 ),
             },
             processCapture: processCapture.clone(),
+            multiAccount,
         }
     }
 
@@ -533,6 +564,7 @@ impl ConfigurationUpdate {
             Socks5Config,
             ManagedHttpProxyConfiguration,
             ProcessCaptureConfiguration,
+            MultiAccountConfiguration,
         ),
         ApiError,
     > {
@@ -627,7 +659,15 @@ impl ConfigurationUpdate {
                 ApiError::badRequest(ErrorCode::InvalidConfiguration)
                     .withParam("detail", error.to_string())
             })?;
-        Ok((configuration, httpConfiguration, processCapture))
+        self.multiAccount.publicAddress().map_err(|detail| {
+            ApiError::badRequest(ErrorCode::InvalidConfiguration).withParam("detail", detail)
+        })?;
+        Ok((
+            configuration,
+            httpConfiguration,
+            processCapture,
+            self.multiAccount,
+        ))
     }
 }
 
@@ -959,6 +999,10 @@ pub struct ControlState {
     configuration: Arc<RwLock<Socks5Config>>,
     httpConfiguration: Arc<RwLock<ManagedHttpProxyConfiguration>>,
     processCaptureConfiguration: Arc<RwLock<ProcessCaptureConfiguration>>,
+    multiAccountConfiguration: Arc<RwLock<MultiAccountConfiguration>>,
+    accountService: AccountServiceSupervisor,
+    clientPackages: clientPackageControl::ClientPackageManager,
+    startServiceOnLaunch: Arc<AtomicBool>,
     processSelection: processControl::ProcessSelectionStore,
     auxiliaryConfiguration: Arc<RwLock<AuxiliaryListenerConfiguration>>,
     ssl: SslMitmManager,
@@ -969,10 +1013,19 @@ pub struct ControlState {
     pluginHost: PluginHost,
     repeatRuntime: repeatControl::RepeatRuntime,
     mcp: mcpControl::McpManager,
+    uiContexts: uiContextControl::UiContextRegistry,
     processCapture: Arc<ProcessCapture>,
     serviceOperationLock: Arc<Mutex<()>>,
+    /// 记录用户对代理数据面的持续运行意图；账号服务故障恢复只能读取该意图，不能凭故障前快照擅自重启。
+    serviceRunIntent: Arc<AtomicBool>,
+    /// 标识多账号配置代际；监督任务在取得生命周期锁后必须重新核对，防止用等待锁前的旧端口启动子进程。
+    multiAccountGeneration: Arc<AtomicU64>,
     service: Arc<Mutex<ManagedService>>,
     revision: Arc<AtomicU64>,
+    /// 仅跟踪会改变完整快照结构的低频控制状态；高频指标事件不推进它，避免快照持续重试饥饿。
+    projectionGeneration: Arc<AtomicU64>,
+    /// 配置替换期间阻止公开快照观察 staged 服务与旧配置的混合窗口。
+    configurationTransactionSender: watch::Sender<bool>,
     eventPublishLock: Arc<SynchronousMutex<()>>,
     eventSender: broadcast::Sender<EventMessage>,
     capturePublishLock: Arc<Mutex<()>>,
@@ -1005,7 +1058,6 @@ impl ControlState {
         let recording = RecordingSession::new(RecordingConfiguration {
             ignoreLocations: recordingConfiguration.ignoreLocations,
             recordTunnelMetadata: recordingConfiguration.recordTunnelMetadata,
-            recordingRules: toolsConfiguration.recordingRules(),
             spillDirectory: dataDirectory.join("capture"),
             ..RecordingConfiguration::default()
         })
@@ -1036,26 +1088,42 @@ impl ControlState {
         .map_err(ControlInitializationError::ProtocolDescriptorDirectory)?;
         let defaultConfiguration = Socks5Config::default();
         let defaultHttpConfiguration = ManagedHttpProxyConfiguration::default();
-        let (initialConfiguration, initialHttpConfiguration, _) = processSelection
-            .serviceConfiguration()
-            .map(|saved| saved.intoInternal(&defaultConfiguration, &defaultHttpConfiguration))
-            .transpose()
-            .map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "保存的服务配置无效")
-            })?
-            .unwrap_or((
-                defaultConfiguration,
-                defaultHttpConfiguration,
-                ProcessCaptureConfiguration::default(),
-            ));
+        let savedServiceConfiguration = processSelection.serviceConfiguration();
+        let startServiceOnLaunch = savedServiceConfiguration
+            .as_ref()
+            .is_some_and(|configuration| configuration.startServiceOnLaunch);
+        let (initialConfiguration, initialHttpConfiguration, _, initialMultiAccountConfiguration) =
+            savedServiceConfiguration
+                .map(|saved| saved.intoInternal(&defaultConfiguration, &defaultHttpConfiguration))
+                .transpose()
+                .map_err(|_| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, "保存的服务配置无效")
+                })?
+                .unwrap_or((
+                    defaultConfiguration,
+                    defaultHttpConfiguration,
+                    ProcessCaptureConfiguration::default(),
+                    MultiAccountConfiguration::default(),
+                ));
         let initialProcessCaptureConfiguration =
             processSelection.runtimeConfiguration(initialConfiguration.listenPort);
         // 首次运行也生成完整配置文件；后续启动会从同一文件恢复，而不是依赖仅存在于内存的默认值。
         processSelection.replaceServiceConfiguration(ConfigurationUpdate::fromInternal(
-            &initialConfiguration,
-            &initialHttpConfiguration,
-            &initialProcessCaptureConfiguration,
+            ConfigurationProjectionSource {
+                socks5: &initialConfiguration,
+                http: &initialHttpConfiguration,
+                processCapture: &initialProcessCaptureConfiguration,
+                startServiceOnLaunch,
+            },
+            initialMultiAccountConfiguration.clone(),
         ))?;
+        let accountService = AccountServiceSupervisor::new(dataDirectory)?;
+        let clientPackages = clientPackageControl::ClientPackageManager::load(dataDirectory)?;
+        // 账号服务同时拥有 SOCKS5 账号数据库与远程 Web 身份；即使远程监听关闭也必须在回环随机端口运行。
+        // 启动失败状态保留在公开快照，控制接口仍可用于修正资源或监听配置。
+        let _ = accountService
+            .start(&initialMultiAccountConfiguration)
+            .await;
         let processCapture = Arc::new(ProcessCapture::new());
         processCapture.setUdpDatagramProcessor(Some(Arc::new(
             crate::packetDataPlane::UnifiedPacketFilterProcessor::new(pluginHost.clone()),
@@ -1073,6 +1141,10 @@ impl ControlState {
             configuration: Arc::new(RwLock::new(initialConfiguration)),
             httpConfiguration: Arc::new(RwLock::new(initialHttpConfiguration)),
             processCaptureConfiguration: Arc::new(RwLock::new(initialProcessCaptureConfiguration)),
+            multiAccountConfiguration: Arc::new(RwLock::new(initialMultiAccountConfiguration)),
+            accountService,
+            clientPackages,
+            startServiceOnLaunch: Arc::new(AtomicBool::new(startServiceOnLaunch)),
             processSelection,
             auxiliaryConfiguration: Arc::new(RwLock::new(initialAuxiliaryConfiguration)),
             ssl,
@@ -1083,9 +1155,12 @@ impl ControlState {
             pluginHost,
             repeatRuntime: repeatControl::RepeatRuntime::default(),
             mcp,
+            uiContexts: uiContextControl::UiContextRegistry::default(),
             processCapture,
             // 启停与配置重启共享同一把操作锁，禁止新监听器在旧配置停机窗口抢占生命周期。
             serviceOperationLock: Arc::new(Mutex::new(())),
+            serviceRunIntent: Arc::new(AtomicBool::new(false)),
+            multiAccountGeneration: Arc::new(AtomicU64::new(0)),
             service: Arc::new(Mutex::new(ManagedService {
                 state: ServiceState::Stopped,
                 runningServer: None,
@@ -1102,6 +1177,8 @@ impl ControlState {
                 archivedMetrics: ServiceMetrics::default(),
             })),
             revision: Arc::new(AtomicU64::new(0)),
+            projectionGeneration: Arc::new(AtomicU64::new(0)),
+            configurationTransactionSender: watch::channel(false).0,
             eventPublishLock: Arc::new(SynchronousMutex::new(())),
             eventSender,
             capturePublishLock: Arc::new(Mutex::new(())),
@@ -1110,6 +1187,10 @@ impl ControlState {
             publishedCaptureRevision: Arc::new(AtomicU64::new(0)),
             shutdownSender,
         };
+        let accountServiceMonitorState = state.clone();
+        tokio::spawn(async move {
+            accountServiceMonitorState.monitorAccountService().await;
+        });
         let forwardingState = state.clone();
         let changes = recording.subscribeChanges();
         tokio::spawn(async move {
@@ -1135,691 +1216,6 @@ impl ControlState {
             processControl::synchronizeSelectedProcessIds(processSynchronizationState).await;
         });
         Ok(state)
-    }
-
-    /// 通知长连接结束，使 Axum 能先停止接收并完成控制连接排空，再关闭 SOCKS5 数据面。
-    pub fn beginShutdown(&self) {
-        self.shutdownSender.send_replace(true);
-    }
-
-    /// 订阅控制面广播事件；接收方落后时应通过 snapshotEvent 重建完整视图。
-    pub fn subscribeEvents(&self) -> broadcast::Receiver<EventMessage> {
-        self.eventSender.subscribe()
-    }
-
-    /// 订阅进程关闭状态；新订阅方可立即读取最近一次关闭标记。
-    pub fn subscribeShutdown(&self) -> watch::Receiver<bool> {
-        self.shutdownSender.subscribe()
-    }
-
-    /// 在同一同步临界区生成修订号并发送事件，保证广播观察顺序严格递增。
-    fn publishRevisioned<F>(&self, eventFactory: F)
-    where
-        F: FnOnce(String, u64) -> EventMessage,
-    {
-        let _publishGuard = self.eventPublishLock.lock();
-        let revision = self.revision.fetch_add(1, Ordering::Relaxed) + 1;
-        let _ = self
-            .eventSender
-            .send(eventFactory(self.serverInstanceId.to_string(), revision));
-    }
-
-    /// 返回当前修订号，不为只读 GET 人为制造状态变更。
-    fn currentRevision(&self) -> u64 {
-        self.revision.load(Ordering::Relaxed)
-    }
-
-    /// 复制当前 SOCKS5 会话基线；仅供广播丢帧后的投影重放，不包含跨服务周期归档历史。
-    async fn currentSocksSessions(&self) -> Vec<SessionSnapshot> {
-        let service = self.service.lock().await;
-        service
-            .runningServer
-            .as_ref()
-            .map(|server| server.snapshot().sessions)
-            .unwrap_or_default()
-    }
-
-    /// 在事务录制器确认接管终态正文后释放数据面镜像；服务周期已经结束时由实例析构统一回收。
-    async fn releaseSocksCapturedBytes(&self, sessionId: &str) {
-        let service = self.service.lock().await;
-        if let Some(server) = service.runningServer.as_ref() {
-            server.releaseCapturedBytes(sessionId);
-        }
-    }
-
-    /// 返回控制面快照；运行实例内部快照使用会话注册表锁保证一致读取。
-    pub async fn snapshot(&self) -> ControlSnapshot {
-        let revision = self.currentRevision();
-        // 先在 service -> configuration 固定锁序下复制纯视图，再释放生命周期锁执行 Capture await，
-        // 避免慢磁盘元数据操作阻塞 start/stop/configuration。
-        let (
-            serviceState,
-            configuration,
-            httpConfiguration,
-            processCaptureConfiguration,
-            listeners,
-            archivedSessions,
-            archivedMetrics,
-            currentSessions,
-            currentMetrics,
-        ) = {
-            let service = self.service.lock().await;
-            let configuration = self.configuration.read().await.clone();
-            let httpConfiguration = self.httpConfiguration.read().await.clone();
-            let processCaptureConfiguration = self.processCaptureConfiguration.read().await.clone();
-            let (currentSessions, socksMetrics) =
-                if let Some(server) = service.runningServer.as_ref() {
-                    let snapshot = server.snapshot();
-                    (snapshot.sessions, snapshot.metrics)
-                } else {
-                    (Vec::new(), ServiceMetrics::default())
-                };
-            let httpMetrics = service
-                .httpMetrics
-                .as_ref()
-                .map(HttpRuntimeMetrics::snapshot)
-                .unwrap_or_default();
-            let currentMetrics = combineConcurrentMetrics(&socksMetrics, &httpMetrics);
-            (
-                service.state,
-                configuration,
-                httpConfiguration.clone(),
-                processCaptureConfiguration,
-                listenerSnapshots(&service, &httpConfiguration),
-                service.archivedSessions.clone(),
-                service.archivedMetrics.clone(),
-                currentSessions,
-                currentMetrics,
-            )
-        };
-        let sessions = combineSessions(
-            &archivedSessions,
-            &currentSessions,
-            configuration.sessionHistoryLimit,
-        );
-        let metrics = combineMetrics(&archivedMetrics, &currentMetrics);
-        let RecordingPageView {
-            recording,
-            collectionToken,
-            total,
-            offset: transactionOffset,
-            transactions: allTransactions,
-        } = self
-            .recording
-            .pageView(None, snapshotTransactionLimit, None)
-            .await
-            .expect("控制面持有的 RecordingSession 在进程退出前不得关闭");
-        let transactions = buildTransactionPage(TransactionPageSource {
-            revision,
-            recordingSessionId: recording.recordingSessionId.clone(),
-            collectionToken,
-            total,
-            transactions: allTransactions,
-            offset: transactionOffset,
-            limit: snapshotTransactionLimit,
-            preferLatest: true,
-        });
-        let advancedRepeats = self.repeatRuntime.list().await;
-        let plugins = self.pluginHost.snapshots();
-        let mcp = self.mcp.publicState().await;
-        ControlSnapshot {
-            serverInstanceId: self.serverInstanceId.to_string(),
-            revision,
-            serviceState,
-            metrics,
-            sessions,
-            configuration: PublicConfiguration::fromInternal(
-                &configuration,
-                &httpConfiguration,
-                &processCaptureConfiguration,
-            ),
-            processCapture: self.processCapture.snapshot(),
-            listeners,
-            ssl: self.ssl.publicState(),
-            recording,
-            tools: self.tools.publicState(),
-            transactions,
-            advancedRepeats,
-            plugins,
-            mcp,
-        }
-    }
-
-    /// 构造自校验完整事件；事件顶层与嵌套快照必须携带同一后台实例标识。
-    pub async fn snapshotEvent(&self) -> EventMessage {
-        let snapshot = self.snapshot().await;
-        EventMessage::Snapshot {
-            serverInstanceId: snapshot.serverInstanceId.clone(),
-            snapshot: Box::new(snapshot),
-        }
-    }
-
-    /// 串行启动数据面；与停止和配置重启共用操作锁，避免并发请求交错修改监听器生命周期。
-    ///
-    /// 运行上下文：公开控制 API、桌面运行时退出流程都经由此入口启动服务。
-    /// 失败语义：当前状态不可启动或全部监听器绑定失败时返回结构化错误，配置保持不变。
-    pub async fn startService(&self) -> Result<ControlSnapshot, ApiError> {
-        let _operationGuard = self.serviceOperationLock.lock().await;
-        let proxyPort = self.configuration.read().await.listenPort;
-        // PID 会随程序重启变化；每次显式启动都从已保存路径重建捕获集合，禁止复用上一次运行的陈旧 PID。
-        *self.processCaptureConfiguration.write().await =
-            self.processSelection.runtimeConfiguration(proxyPort);
-        self.startServiceExclusive().await
-    }
-
-    /// 在已持有服务操作锁时启动所有已启用数据面；调用方必须保证不存在并发启停或配置替换。
-    ///
-    /// 运行上下文：普通启动和运行中配置替换复用同一生命周期实现。
-    /// 失败语义：至少一个监听器未成功运行时返回启动失败，状态与监听器错误快照可供调用方检查。
-    async fn startServiceExclusive(&self) -> Result<ControlSnapshot, ApiError> {
-        let mut service = self.service.lock().await;
-        if !matches!(service.state, ServiceState::Stopped | ServiceState::Faulted) {
-            return Err(ApiError::conflict(ErrorCode::ServiceNotStartable));
-        }
-        service.state = ServiceState::Starting;
-        service.socksError = None;
-        service.errorMessage = None;
-        let startingHttpConfiguration = self.httpConfiguration.read().await.clone();
-        let startingListeners = listenerSnapshots(&service, &startingHttpConfiguration);
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-            serverInstanceId,
-            revision,
-            serviceState: ServiceState::Starting,
-            listeners: startingListeners,
-        });
-        let configuration = self.configuration.read().await.clone();
-        let httpConfiguration = self.httpConfiguration.read().await.clone();
-        let mut processCaptureConfiguration = self.processCaptureConfiguration.read().await.clone();
-        processCaptureConfiguration.proxyPort = configuration.listenPort;
-        processCaptureConfiguration.proxyAddress = configuration.listenHost;
-        let auxiliaryConfiguration = self.auxiliaryConfiguration.read().await.clone();
-        let sessionHistoryLimit = configuration.sessionHistoryLimit;
-        let dnsSpoofing = self.tools.dnsSpoofing();
-        let httpDependencies = HttpProxyDependencies {
-            capture: self.recording.clone(),
-            ssl: self.ssl.clone(),
-            pipeline: self.toolPipeline(),
-            pluginHost: self.pluginHost.clone(),
-            dnsSpoofing: dnsSpoofing.clone(),
-        };
-        let tunnelInspector = SocksHttpInspector::newWithDns(
-            httpConfiguration.configuration.clone(),
-            httpDependencies.clone(),
-        );
-        let httpHandler =
-            buildHttpConnectionHandler(httpConfiguration.configuration.clone(), httpDependencies);
-        let outboundConnector = transport_core::OutboundConnector::new(
-            httpConfiguration.configuration.upstreamProxy.clone(),
-            httpConfiguration.configuration.connectTimeout(),
-        )
-        .expect("HTTP 配置已在融合监听器启动前完成二级代理校验");
-        match (tunnelInspector, httpHandler) {
-            (Ok(tunnelInspector), Ok(httpHandler)) => {
-                // HTTP 在融合监听中绕过 SOCKS 会话注册表，必须在移动处理器前取得独立账本和变化订阅。
-                // 订阅先于监听器启动，确保首条快速连接不会落入实时指标观察窗口之外。
-                let httpMetrics = httpHandler.runtimeMetrics();
-                let httpMetricChanges = httpMetrics.subscribeChanges();
-                let tunnelInterceptor = Arc::new(tunnelInspector.clone())
-                    as Arc<dyn socks5_core::interception::TcpTunnelInterceptor>;
-                let unifiedHandler = Arc::new(UnifiedProtocolHandler {
-                    http: httpHandler,
-                    inspector: tunnelInspector,
-                    processCapture: self.processCapture.clone(),
-                    outbound: outboundConnector.clone(),
-                    processSelection: self.processSelection.clone(),
-                    transparentRecording: TransparentRecording::new(self.recording.clone()),
-                    pluginHost: self.pluginHost.clone(),
-                }) as Arc<dyn PortProtocolHandler>;
-                match startFusedProxyServer(
-                    configuration,
-                    self.pluginHost.clone(),
-                    Some(tunnelInterceptor),
-                    Some(Arc::new(SocksDnsOverride {
-                        tool: dnsSpoofing.clone(),
-                    })),
-                    Some(unifiedHandler),
-                    Some(outboundConnector),
-                    // 内部入口与公开代理共享生命周期但不公开；常驻入口让进程捕获可以独立热启停，
-                    // 避免路径增删重建监听器并中断已有 HTTP/SOCKS 长连接。
-                    true,
-                )
-                .await
-                {
-                    Ok(runningServer) => {
-                        let internalCaptureAddress = runningServer
-                            .internalCaptureAddress()
-                            .expect("融合服务必须持有热启停使用的内部双栈捕获入口");
-                        processCaptureConfiguration.proxyAddress = internalCaptureAddress.ip();
-                        processCaptureConfiguration.proxyPort = internalCaptureAddress.port();
-                        let udpRecording =
-                            crate::udpRecording::startCoordinatedUdpRecordingGeneration(
-                                &self.dataDirectory,
-                                self.recording.clone(),
-                                Arc::new(self.processSelection.clone()),
-                                Arc::clone(&self.udpRecordingCoordination),
-                                Arc::clone(&self.recordingUpdateLock),
-                            );
-                        let processCaptureStart = match udpRecording.as_ref() {
-                            Ok(runtime) => {
-                                self.processCapture.setUdpDatagramSink(Some(runtime.sink()));
-                                self.processCapture
-                                    .start(processCaptureConfiguration.clone())
-                            }
-                            Err(error) => Err(ProcessCaptureError::Worker {
-                                worker: "UDP 录制代际创建",
-                                detail: error.to_string(),
-                            }),
-                        };
-                        if let Err(error) = processCaptureStart {
-                            // WinDivert 必须在融合监听绑定成功后加载；驱动启动失败时先回收监听，
-                            // 再沿用统一终态发布路径，确保控制面不会永久停留在 Starting。
-                            self.processCapture.setUdpDatagramSink(None);
-                            if let Ok(runtime) = udpRecording {
-                                let _ = runtime.stopAndDrain().await;
-                            }
-                            let _ = runningServer.stop().await;
-                            service.socksError = Some(listenerError(
-                                "processCaptureStartFailed",
-                                "error.serviceStartFailed",
-                            ));
-                            service.errorMessage = Some(format!("[processCapture] {error}"));
-                        } else {
-                            service.udpRecording = udpRecording.ok();
-                            let sessionEvents = runningServer.subscribeEvents();
-                            let captureGeneration = runningServer.captureGeneration();
-                            // 订阅必须先于基线读取；绑定成功到控制 API 返回之间的连接不会落入观察窗口之外。
-                            let initialSessions = runningServer.snapshot().sessions;
-                            let exitReceiver = runningServer.subscribeExit();
-                            service.captureGeneration = Some(captureGeneration.clone());
-                            service.runningServer = Some(runningServer);
-                            service.httpMetrics = Some(httpMetrics);
-                            let forwardingState = self.clone();
-                            service.eventForwarder = Some(tokio::spawn(async move {
-                                forwardRuntimeEvents(
-                                    forwardingState,
-                                    sessionEvents,
-                                    captureGeneration,
-                                    initialSessions,
-                                    sessionHistoryLimit,
-                                )
-                                .await;
-                            }));
-                            let metricState = self.clone();
-                            service.httpMetricForwarder = Some(tokio::spawn(async move {
-                                forwardHttpMetricEvents(metricState, httpMetricChanges).await;
-                            }));
-                            let exitState = self.clone();
-                            service.exitMonitor = Some(tokio::spawn(async move {
-                                if waitForServerExit(exitReceiver).await.is_some() {
-                                    exitState.handleUnexpectedServerExit().await;
-                                }
-                            }));
-                        }
-                    }
-                    Err(_) => {
-                        service.socksError = Some(listenerError(
-                            "socks5StartFailed",
-                            "error.serviceStartFailed",
-                        ));
-                    }
-                }
-            }
-            _ => {
-                service.socksError = Some(listenerError(
-                    "proxyListenerStartFailed",
-                    "error.serviceStartFailed",
-                ));
-            }
-        }
-        if auxiliaryConfiguration
-            .reverseProxies
-            .iter()
-            .any(|entry| entry.enabled)
-            || auxiliaryConfiguration
-                .portForwards
-                .iter()
-                .any(|entry| entry.enabled)
-        {
-            match startAuxiliaryListeners(
-                auxiliaryConfiguration,
-                httpConfiguration.configuration.clone(),
-                self.recording.clone(),
-                self.ssl.clone(),
-                self.toolPipeline(),
-                CancellationToken::new(),
-            )
-            .await
-            {
-                Ok(listeners) => service.runningAuxiliaryListeners = Some(listeners),
-                Err(error) => {
-                    service.errorMessage = Some(format!("[auxiliary] {}", error.code()));
-                }
-            }
-        }
-        let hasRunningListener =
-            service.runningServer.is_some() || service.runningAuxiliaryListeners.is_some();
-        if service.errorMessage.is_none() {
-            service.errorMessage = aggregateListenerErrors(&service);
-        }
-        service.state = if hasRunningListener {
-            ServiceState::Running
-        } else {
-            ServiceState::Faulted
-        };
-        let finalState = service.state;
-        let listeners = listenerSnapshots(&service, &httpConfiguration);
-        let errorMessage = service.errorMessage.clone();
-        drop(service);
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-            serverInstanceId,
-            revision,
-            serviceState: finalState,
-            listeners,
-        });
-        self.publishRuntimeViews().await;
-        if hasRunningListener {
-            Ok(self.snapshot().await)
-        } else {
-            let error = match errorMessage {
-                Some(detail) => {
-                    ApiError::internal(ErrorCode::ServiceStartFailed).withParam("detail", detail)
-                }
-                None => ApiError::internal(ErrorCode::ServiceStartFailed),
-            };
-            Err(error)
-        }
-    }
-
-    /// 归档 SOCKS5 意外退出；HTTP 仍运行时保持 running，仅在全部监听失效时切换 faulted。
-    async fn handleUnexpectedServerExit(&self) {
-        // 意外退出与显式启停必须共享同一操作锁。若先发布 Faulted 再无锁排空旧 UDP
-        // 代际，新的 start 会并发打开同一 spool 目录，破坏单 writer、单 reader 和捕获顺序。
-        // 持锁覆盖完整清理后，下一代只能在旧代际提交完正文并释放文件句柄后创建。
-        let _operationGuard = self.serviceOperationLock.lock().await;
-        let (
-            runningServer,
-            eventForwarder,
-            httpMetricForwarder,
-            udpRecording,
-            exitingCaptureGeneration,
-            stateEvent,
-        ) = {
-            let mut service = self.service.lock().await;
-            if service.state != ServiceState::Running {
-                return;
-            }
-            service.socksError = Some(listenerError(
-                "socks5RuntimeFailed",
-                "error.serviceStartFailed",
-            ));
-            let runningServer = service.runningServer.take();
-            let eventForwarder = service.eventForwarder.take();
-            let httpMetricForwarder = service.httpMetricForwarder.take();
-            let udpRecording = service.udpRecording.take();
-            let exitingCaptureGeneration = service.captureGeneration.clone();
-            service.state = ServiceState::Faulted;
-            service.errorMessage = aggregateListenerErrors(&service);
-            let httpConfiguration = self.httpConfiguration.read().await;
-            let stateEvent = (
-                service.state,
-                listenerSnapshots(&service, &httpConfiguration),
-            );
-            (
-                runningServer,
-                eventForwarder,
-                httpMetricForwarder,
-                udpRecording,
-                exitingCaptureGeneration,
-                stateEvent,
-            )
-        };
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-            serverInstanceId,
-            revision,
-            serviceState: stateEvent.0,
-            listeners: stateEvent.1,
-        });
-        let _ = self.processCapture.stop();
-        self.processCapture.setUdpDatagramSink(None);
-        if let Some(runtime) = udpRecording {
-            let _ = runtime.stopAndDrain().await;
-        }
-        let stopOutcome = match runningServer {
-            Some(server) => Some(server.stop().await),
-            None => None,
-        };
-        {
-            // HTTP 监听已经停止，原子账本不会再变化；在同一锁内从当前槽位迁入历史，
-            // 让尚处于合并定时器中的转发任务始终读取到等价权威值。
-            let mut service = self.service.lock().await;
-            archiveHttpRuntimeMetrics(&mut service);
-        }
-        drainRuntimeEventForwarder(httpMetricForwarder).await;
-        drainRuntimeEventForwarder(eventForwarder).await;
-        let historyLimit = self.configuration.read().await.sessionHistoryLimit;
-        {
-            let mut service = self.service.lock().await;
-            if let Some(stopOutcome) = stopOutcome {
-                // 意外退出也必须在终态投影排空后归档最终快照，避免正文镜像或末尾指标跨周期残留。
-                archiveRuntimeSnapshot(&mut service, stopOutcome.snapshot, historyLimit);
-            }
-            // 只释放本次退出所属句柄，避免 clear 与退出归档交错时重新接纳已删除的旧队列事件。
-            releaseExitedCaptureGeneration(&mut service, exitingCaptureGeneration.as_ref());
-        }
-        self.publishRuntimeViews().await;
-    }
-
-    /// 串行停止融合代理数据面并强制关闭连接；停止状态重复调用保持幂等。
-    ///
-    /// 运行上下文：公开停止操作和配置替换前的强制断连均使用此入口。
-    /// 失败语义：底层停止失败时保留 faulted 状态和监听器诊断，不继续执行后续配置替换。
-    pub async fn stopService(&self) -> Result<ControlSnapshot, ApiError> {
-        let _operationGuard = self.serviceOperationLock.lock().await;
-        self.stopServiceExclusive().await
-    }
-
-    /// 在已持有服务操作锁时终止全部数据面；活动 SOCKS5 与 HTTP 转发连接会在本次停止中关闭。
-    ///
-    /// 运行上下文：配置重启调用本函数先回收旧监听器、会话任务和断点等待项。
-    /// 失败语义：任一数据面停止失败时返回错误，调用方不得把新配置写入运行中的旧实例。
-    async fn stopServiceExclusive(&self) -> Result<ControlSnapshot, ApiError> {
-        let (
-            runningServer,
-            runningAuxiliaryListeners,
-            eventForwarder,
-            httpMetricForwarder,
-            exitMonitor,
-            udpRecording,
-        ) = {
-            let mut service = self.service.lock().await;
-            if service.state == ServiceState::Stopped {
-                drop(service);
-                return Ok(self.snapshot().await);
-            }
-            if service.state == ServiceState::Faulted
-                && service.runningServer.is_none()
-                && service.runningAuxiliaryListeners.is_none()
-                && service.udpRecording.is_none()
-            {
-                service.state = ServiceState::Stopped;
-                service.socksError = None;
-                service.errorMessage = None;
-                let httpConfiguration = self.httpConfiguration.read().await.clone();
-                let listeners = listenerSnapshots(&service, &httpConfiguration);
-                self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-                    serverInstanceId,
-                    revision,
-                    serviceState: ServiceState::Stopped,
-                    listeners,
-                });
-                drop(service);
-                return Ok(self.snapshot().await);
-            }
-            if service.state != ServiceState::Running {
-                return Err(ApiError::conflict(ErrorCode::ServiceNotStoppable));
-            }
-            service.state = ServiceState::Stopping;
-            let httpConfiguration = self.httpConfiguration.read().await.clone();
-            let listeners = listenerSnapshots(&service, &httpConfiguration);
-            self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-                serverInstanceId,
-                revision,
-                serviceState: ServiceState::Stopping,
-                listeners,
-            });
-            (
-                service.runningServer.take(),
-                service.runningAuxiliaryListeners.take(),
-                service.eventForwarder.take(),
-                service.httpMetricForwarder.take(),
-                service.exitMonitor.take(),
-                service.udpRecording.take(),
-            )
-        };
-        // 停止数据面前先唤醒全部断点等待者；否则连接任务可能在监听器退出后仍持有暂停槽位。
-        self.releaseBreakpointQueue();
-        // WinDivert 必须先恢复网络路径再关闭本地监听器，避免已反射连接继续命中失效端口。
-        let processCaptureStop = self.processCapture.stop();
-        self.processCapture.setUdpDatagramSink(None);
-        if let Some(exitMonitor) = exitMonitor {
-            exitMonitor.abort();
-            let _ = exitMonitor.await;
-        }
-        let socksStop = async move {
-            match runningServer {
-                Some(server) => Some(server.stop().await),
-                None => None,
-            }
-        };
-        let auxiliaryStop = async move {
-            match runningAuxiliaryListeners {
-                Some(listeners) => Some(listeners.stop().await),
-                None => None,
-            }
-        };
-        let (stopOutcome, auxiliaryStopOutcome) = tokio::join!(socksStop, auxiliaryStop);
-        {
-            // 数据面停止后立即在服务锁内迁移 HTTP 账本；即使转发任务的 50ms 定时器随后触发，
-            // `publishMetricsView` 也只能读到数值相同的历史账本，不会产生高 revision 回退。
-            let mut service = self.service.lock().await;
-            archiveHttpRuntimeMetrics(&mut service);
-        }
-        let udpRecordingStop = match udpRecording {
-            Some(runtime) => runtime.stopAndDrain().await,
-            None => Ok(()),
-        };
-        // 镜像仅在代理链已停止接纳新报文后排空，确保 stop 成功返回时不会再有挂起文件写入。
-        let mirrorFlushOutcome = self.flushMirrorWrites().await;
-        // SOCKS5 停止会先发布每个活动会话的终态；投影任务排空后，最终快照才可对外承诺事务已完成。
-        drainRuntimeEventForwarder(eventForwarder).await;
-        drainRuntimeEventForwarder(httpMetricForwarder).await;
-        let historyLimit = self.configuration.read().await.sessionHistoryLimit;
-        let mut service = self.service.lock().await;
-        let mut stopDiagnostics = Vec::new();
-        if let Err(error) = processCaptureStop {
-            stopDiagnostics.push(format!("[processCapture] {error}"));
-        }
-        if let Err(error) = udpRecordingStop {
-            stopDiagnostics.push(format!("[udpRecording] {error}"));
-        }
-        if let Some(stopOutcome) = stopOutcome {
-            archiveRuntimeSnapshot(&mut service, stopOutcome.snapshot, historyLimit);
-            if let Some(errorMessage) = stopOutcome.errorMessage {
-                service.socksError =
-                    Some(listenerError("socks5StopFailed", "error.serviceStopFailed"));
-                stopDiagnostics.push(format!("[socks5] {errorMessage}"));
-            }
-        }
-        // 投影任务已经排空且归档已移除正文，停止周期的代际句柄不再参与 clear 竞态。
-        service.captureGeneration = None;
-        if let Some(Err(error)) = auxiliaryStopOutcome {
-            stopDiagnostics.push(format!("[auxiliary] {}", error.code()));
-        }
-        if let Err(error) = mirrorFlushOutcome {
-            let _ = error;
-            stopDiagnostics.push("[mirror] mirrorFlushFailed".to_owned());
-        }
-        let stopError = if stopDiagnostics.is_empty() {
-            service.state = ServiceState::Stopped;
-            service.socksError = None;
-            service.errorMessage = None;
-            None
-        } else {
-            let detail = stopDiagnostics.join("; ");
-            service.state = ServiceState::Faulted;
-            // 对外快照只暴露稳定、本地化的监听错误；底层停止诊断仅保留在当前失败响应中。
-            service.errorMessage = aggregateListenerErrors(&service);
-            Some(ApiError::internal(ErrorCode::ServiceStopFailed).withParam("detail", detail))
-        };
-        let finalState = service.state;
-        let httpConfiguration = self.httpConfiguration.read().await.clone();
-        let listeners = listenerSnapshots(&service, &httpConfiguration);
-        drop(service);
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ServiceState {
-            serverInstanceId,
-            revision,
-            serviceState: finalState,
-            listeners,
-        });
-        self.publishRuntimeViews().await;
-        if let Some(stopError) = stopError {
-            Err(stopError)
-        } else {
-            Ok(self.snapshot().await)
-        }
-    }
-
-    /// 原子替换服务配置；运行或故障中的数据面先强制停止并断开全部转发连接，再以新配置启动。
-    ///
-    /// 运行上下文：设置对话框提交完整配置时调用，操作锁覆盖校验、停止、写入和重启全过程。
-    /// 参数：update 为已反序列化的完整公开配置，认证口令仅在本次更新中用于构建内部配置。
-    /// 失败语义：校验失败不改变服务；停止失败不写入新配置；新监听器启动失败时保留新配置并以 faulted 状态返回错误。
-    pub async fn replaceConfiguration(
-        &self,
-        update: ConfigurationUpdate,
-    ) -> Result<ControlSnapshot, ApiError> {
-        let _operationGuard = self.serviceOperationLock.lock().await;
-        let current = self.configuration.read().await.clone();
-        let currentHttp = self.httpConfiguration.read().await.clone();
-        let (configuration, httpConfiguration, processCaptureConfiguration) =
-            update.intoInternal(&current, &currentHttp)?;
-
-        let restartRequired = {
-            let service = self.service.lock().await;
-            service.state != ServiceState::Stopped
-        };
-        if restartRequired {
-            self.stopServiceExclusive().await?;
-        }
-
-        // 先持久化完整配置再替换内存视图，磁盘失败时旧配置仍是唯一权威状态。
-        self.processSelection
-            .replaceServiceConfiguration(ConfigurationUpdate::fromInternal(
-                &configuration,
-                &httpConfiguration,
-                &processCaptureConfiguration,
-            ))
-            .map_err(|error| {
-                ApiError::internal(ErrorCode::ConfigurationPersistenceFailed)
-                    .withParam("detail", error.to_string())
-            })?;
-        *self.configuration.write().await = configuration.clone();
-        *self.httpConfiguration.write().await = httpConfiguration.clone();
-        *self.processCaptureConfiguration.write().await = processCaptureConfiguration.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Configuration {
-            serverInstanceId,
-            revision,
-            configuration: PublicConfiguration::fromInternal(
-                &configuration,
-                &httpConfiguration,
-                &processCaptureConfiguration,
-            ),
-        });
-        if restartRequired {
-            self.startServiceExclusive().await
-        } else {
-            Ok(self.snapshot().await)
-        }
     }
 
     /// 删除已结束会话记录并返回最新快照；活动会话继续保留。
@@ -2018,107 +1414,5 @@ impl ControlState {
             base64: base64Standard.encode(bytes),
             decoded,
         })
-    }
-
-    /// 发布录制快照和权威全量事务摘要；只有显式 clear 会让既有事务从数组中消失。
-    async fn publishRecordingViews(&self) -> Result<(), ApiError> {
-        let _publishGuard = self.capturePublishLock.lock().await;
-        let captureRevision = self.recording.currentChangeRevision();
-        if captureRevision <= self.publishedCaptureRevision.load(Ordering::Acquire) {
-            return Ok(());
-        }
-        let RecordingPageView {
-            recording,
-            collectionToken,
-            total,
-            offset,
-            transactions: allTransactions,
-        } = self
-            .recording
-            .pageView(None, snapshotTransactionLimit, None)
-            .await
-            .map_err(mapCaptureOperationError)?;
-        let recordingSessionId = recording.recordingSessionId.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Recording {
-            serverInstanceId,
-            revision,
-            recording,
-        });
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Transactions {
-            serverInstanceId,
-            revision,
-            transactions: buildTransactionPage(TransactionPageSource {
-                revision,
-                recordingSessionId,
-                collectionToken,
-                total,
-                transactions: allTransactions,
-                offset,
-                limit: snapshotTransactionLimit,
-                preferLatest: true,
-            }),
-        });
-        self.publishedCaptureRevision
-            .store(captureRevision, Ordering::Release);
-        Ok(())
-    }
-
-    /// 从控制层权威历史与当前运行实例发布 sessions、metrics 两种严格增量消息。
-    async fn publishRuntimeViews(&self) {
-        let snapshot = self.snapshot().await;
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Sessions {
-            serverInstanceId,
-            revision,
-            sessions: snapshot.sessions,
-        });
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Metrics {
-            serverInstanceId,
-            revision,
-            metrics: snapshot.metrics,
-        });
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ProcessCapture {
-            serverInstanceId,
-            revision,
-            processCapture: snapshot.processCapture,
-        });
-    }
-
-    /// 发布 SOCKS 与 HTTP 合并后的真实服务指标；高频 HTTP I/O 不读取事务页或进程捕获快照。
-    async fn publishMetricsView(&self) {
-        let metrics = {
-            let service = self.service.lock().await;
-            let socksMetrics = service
-                .runningServer
-                .as_ref()
-                .map(|server| server.snapshot().metrics)
-                .unwrap_or_default();
-            let httpMetrics = service
-                .httpMetrics
-                .as_ref()
-                .map(HttpRuntimeMetrics::snapshot)
-                .unwrap_or_default();
-            combineMetrics(
-                &service.archivedMetrics,
-                &combineConcurrentMetrics(&socksMetrics, &httpMetrics),
-            )
-        };
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Metrics {
-            serverInstanceId,
-            revision,
-            metrics,
-        });
-    }
-
-    /// 发布 WinDivert 运行快照；高频数据包计数与普通代理会话事件相互独立，避免无代理会话时工作台停止刷新。
-    ///
-    /// 运行上下文：进程路径同步任务每秒调用一次，服务启停则由 `publishRuntimeViews` 发布最终状态。
-    /// 失败语义：快照只复制原子计数和有界流表长度，不执行驱动 IO；事件慢订阅者沿用广播通道的丢帧重连语义。
-    async fn publishProcessCaptureView(&self) {
-        let processCapture = self.processCapture.snapshot();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::ProcessCapture {
-            serverInstanceId,
-            revision,
-            processCapture,
-        });
     }
 }

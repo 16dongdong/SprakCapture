@@ -77,6 +77,7 @@ async fn transparentFixture(
         routePinned: true,
         targetPort: serverAddress.port(),
         cancellation: CancellationToken::new(),
+        accountLease: None,
     };
     (
         temporaryDirectory,

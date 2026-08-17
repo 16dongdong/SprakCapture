@@ -61,7 +61,7 @@ impl ControlState {
             .updateConfiguration(configuration)
             .map_err(mapSslOperationError)?;
         let eventState = ssl.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
             serverInstanceId,
             revision,
             ssl: eventState,
@@ -73,7 +73,7 @@ impl ControlState {
     fn regenerateSslRoot(&self) -> Result<SslPublicState, ApiError> {
         let ssl = self.ssl.regenerateRoot().map_err(mapSslOperationError)?;
         let eventState = ssl.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
             serverInstanceId,
             revision,
             ssl: eventState,
@@ -118,7 +118,7 @@ impl ControlState {
     /// 统一发布 SSL 状态事件，避免各证书操作复制 revision 逻辑。
     fn publishSslState(&self, ssl: SslPublicState) -> Result<SslPublicState, ApiError> {
         let eventState = ssl.clone();
-        self.publishRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
+        self.publishProjectionRevisioned(|serverInstanceId, revision| EventMessage::Ssl {
             serverInstanceId,
             revision,
             ssl: eventState,

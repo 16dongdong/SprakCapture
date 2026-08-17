@@ -622,16 +622,58 @@
 
 .serviceSummary,
 .metricsGrid,
-.diagnosticPanel,
+.accountOverview,
 .inlineNotice {
   width: min(1080px, 100%);
   margin-right: auto;
   margin-left: auto;
 }
 
+/* 多账号实时值与代理累计值进入同一指标网格，连接数只保留账号服务的实时口径。 */
+.accountOverview {
+  margin-top: var(--space-panel);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.accountOverviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: var(--space-panel);
+  gap: var(--space-panel);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.accountOverviewHeader h2,
+.accountOverviewHeader p {
+  margin: 0;
+}
+
+.accountOverviewHeader h2 {
+  font-size: 15px;
+}
+
+.accountOverviewHeader p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+}
+
+.accountManagementButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--field-height);
+  gap: 6px;
+}
+
 .serviceSummary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   background: var(--surface);
   border: 1px solid var(--border);
 }
@@ -646,32 +688,22 @@
 }
 
 .serviceControl {
-  justify-content: space-between;
+  justify-content: flex-end;
   border-left: 1px solid var(--border);
-}
-
-.connectionReadiness {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  color: var(--success);
-  gap: var(--space-tight);
 }
 
 .serviceControl .statusAction {
   flex: 0 0 auto;
 }
 
-.serviceIdentity > div,
-.connectionReadiness > div {
+.serviceIdentity > div {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
 .serviceIdentity small,
-.serviceIdentity span,
-.connectionReadiness span {
+.serviceIdentity span {
   color: var(--text-secondary);
 }
 
@@ -712,6 +744,32 @@
   border: 1px solid var(--border);
 }
 
+.accountOverview .metricsGrid {
+  width: 100%;
+  margin: 0;
+  border: 0;
+}
+
+.accountCombinedMetricsGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.accountCombinedMetricsGrid > .metricCell {
+  border-bottom: 0;
+}
+
+.accountCombinedMetricsGrid > .metricCell:nth-child(3n) {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.accountCombinedMetricsGrid > .metricCell:last-child {
+  border-right: 0;
+}
+
+.accountCombinedMetricsGrid > .metricCell:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
 .metricCell {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -738,48 +796,6 @@
 
 .metricCell strong {
   font-size: 14px;
-}
-
-.diagnosticPanel {
-  margin-top: var(--space-panel);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-.diagnosticPanel h2 {
-  height: 32px;
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 12px;
-  background: var(--surface-toolbar);
-  border-bottom: 1px solid var(--border);
-}
-
-.diagnosticPanel dl {
-  margin: 0;
-}
-
-.diagnosticPanel dl > div {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  min-height: 30px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.diagnosticPanel dl > div:last-child {
-  border-bottom: 0;
-}
-
-.diagnosticPanel dt,
-.diagnosticPanel dd {
-  margin: 0;
-  padding: 7px 10px;
-}
-
-.diagnosticPanel dt {
-  color: var(--text-secondary);
-  background: var(--surface-raised);
-  border-right: 1px solid var(--border-subtle);
 }
 
 .primaryButton {
@@ -815,20 +831,21 @@
 .floatingPanel {
   display: grid;
   grid-template-rows:
-    var(--utility-height)
+    28px
     auto
     auto
-    var(--field-height)
+    28px
     auto;
   width: 100%;
   height: 100dvh;
-  min-height: 250px;
-  padding: var(--space-panel);
-  gap: var(--space-tight);
+  min-height: 0;
+  padding: 8px;
+  gap: 5px;
   overflow: auto;
   background: var(--surface-toolbar);
 }
 
+/* 悬浮面板只承担后台状态速览，固定紧凑尺寸避免重复主工作台的大面积留白。 */
 .floatingPanel > header {
   display: flex;
   align-items: center;
@@ -839,19 +856,22 @@
 .floatingTitle {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
+  font-size: 12px;
 }
 
 .floatingTitle svg {
+  width: 14px;
+  height: 14px;
   color: var(--accent);
 }
 
 .floatingStatus {
   display: flex;
   align-items: center;
-  min-height: 58px;
-  padding: 10px 12px;
-  gap: 11px;
+  min-height: 44px;
+  padding: 6px 9px;
+  gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -861,18 +881,13 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 3px;
-}
-
-.floatingStatus small {
-  color: var(--text-secondary);
-  font-size: 10px;
-  line-height: 1;
+  gap: 2px;
 }
 
 .floatingStatus span {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
@@ -889,8 +904,8 @@
   align-items: center;
   flex-direction: column;
   min-width: 0;
-  padding: 8px 4px;
-  gap: 3px;
+  padding: 5px 3px;
+  gap: 1px;
   border-right: 1px solid var(--border-subtle);
 }
 
@@ -903,6 +918,11 @@
   color: var(--text-secondary);
 }
 
+.floatingMetrics svg {
+  width: 12px;
+  height: 12px;
+}
+
 .floatingMetrics span {
   font-size: 10px;
 }
@@ -913,10 +933,22 @@
   overflow-wrap: anywhere;
 }
 
+.floatingPanel > .statusAction {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+}
+
+.floatingPanel > .statusAction svg {
+  width: 13px;
+  height: 13px;
+}
+
 .floatingPanel > p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -1006,9 +1038,42 @@
     border-bottom: 0;
   }
 
+  .accountCombinedMetricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accountCombinedMetricsGrid > .metricCell {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .accountCombinedMetricsGrid > .metricCell:nth-child(3n) {
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .accountCombinedMetricsGrid > .metricCell:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .accountCombinedMetricsGrid > .metricCell:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .accountCombinedMetricsGrid > .metricCell:last-child {
+    border-right: 0;
+    border-bottom: 0;
+  }
+
 }
 
 @media (max-width: 520px) {
+  .accountOverviewHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .accountManagementButton {
+    width: 100%;
+  }
   .topToolbar {
     padding: 0 6px;
   }
@@ -1223,11 +1288,13 @@
 .pluginConfiguration { display: grid; min-width: 0; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .pluginOverview { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .pluginOverview h3,
-.pluginConfiguration h3 { margin: 0; font-size: 14px; }
+.pluginConfiguration :is(h2, h3) { margin: 0; font-size: 14px; }
 .pluginOverview p { margin: 4px 0 0; color: var(--text-secondary); font-family: var(--font-mono, Consolas, monospace); font-size: 12px; overflow-wrap: anywhere; }
 .pluginOverviewActions { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; }
 .pluginActionButton { display: inline-flex; align-items: center; min-height: 30px; gap: 5px; }
+.pluginWindowButton { display: inline-flex; align-items: center; gap: 5px; }
 .pluginUninstallButton { color: var(--danger); }
+.pluginOverview .pluginWindowDescription { grid-column: 1 / -1; margin: 0; color: var(--text-secondary); font-family: inherit; line-height: 1.5; }
 .pluginMetadata { display: grid; min-width: 0; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; border: 1px solid var(--border-subtle); border-radius: 7px; overflow: hidden; }
 .pluginMetadata > div { display: grid; min-width: 0; grid-template-columns: minmax(96px, 0.34fr) minmax(0, 1fr); border-bottom: 1px solid var(--border-subtle); }
 .pluginMetadata > div:nth-last-child(-n + 2) { border-bottom: 0; }
@@ -1251,6 +1318,15 @@
 .pluginConfigurationField small { color: var(--text-tertiary); line-height: 1.4; overflow-wrap: anywhere; }
 .pluginConfigurationActions { display: flex; justify-content: end; }
 
+/* 插件配置由插件自己的独立窗口承载；窗口不复用主页面的双栏尺寸，避免宿主操作和插件输入互相挤压。 */
+.pluginWindowPage { display: grid; min-height: 100%; align-content: start; background: var(--surface); }
+.pluginWindowHeader { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; gap: 16px; border-bottom: 1px solid var(--border); }
+.pluginWindowHeader > div { display: grid; min-width: 0; gap: 3px; }
+.pluginWindowHeader span { color: var(--accent-strong); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.pluginWindowHeader h1 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
+.pluginWindowHeader p { margin: 0; color: var(--text-secondary); font-family: var(--font-mono, Consolas, monospace); font-size: 12px; overflow-wrap: anywhere; }
+.pluginWindowConfiguration { border-bottom: 0; padding: 20px; }
+
 @media (max-width: 820px) {
   .pluginManagerWorkspace { height: auto; min-height: 0; }
   .pluginManagerLayout { grid-template-columns: minmax(0, 1fr); overflow: auto; }
@@ -1268,4 +1344,5 @@
   .pluginMetadata > div:last-child { border-bottom: 0 !important; }
   .pluginOverview,
   .pluginConfiguration { padding: 12px; }
+  .pluginWindowHeader { padding: 14px 12px; }
 }

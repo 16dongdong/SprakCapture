@@ -53,14 +53,14 @@ SDK 按 `connectionId + direction` 隔离缓冲、编解码器和密码状态。
 ## 安装与测试
 
 ```powershell
-python -m pip install -e Server/PluginSDK/Python
-python -m unittest discover -s Server/PluginSDK/Python/tests -p "test*.py"
+python -m pip install -e PluginSDK/Python
+python -m unittest discover -s PluginSDK/Python/tests -p "test*.py"
 ```
 
 也可直接运行夹具：
 
 ```powershell
-Set-Location Server/PluginSDK/Python
+Set-Location PluginSDK/Python
 capture-plugin-python examples.binaryProtocol.plugin:plugin examples/binaryProtocol/invocation.json
 ```
 

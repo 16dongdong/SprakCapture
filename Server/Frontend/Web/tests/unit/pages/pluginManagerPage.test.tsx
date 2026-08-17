@@ -2,24 +2,31 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  EventMessage,
-  PluginDetails,
-  PluginSnapshot,
-} from "@/api/protocol";
+import type { EventMessage, PluginSnapshot } from "@/api/protocol";
 import type {
   EventClientCallbacks,
   EventStreamClient,
 } from "@/api/eventClient";
-import { PluginManagerPage } from "@/pages/pluginManagerPage";
 import i18n from "@/i18n";
+import { PluginManagerPage } from "@/pages/pluginManagerPage";
 import { ServiceProvider } from "@/state/serviceStore";
 import {
   createControlClientStub,
   createServiceSnapshot,
 } from "#tests/testFixtures";
 
-/** 创建已连接事件流替身，使用例聚焦插件控制面和表单脱敏行为。 */
+const windowMocks = vi.hoisted(() => ({ show: vi.fn() }));
+
+vi.mock("@/platform/independentWindowContract", () => ({
+  showIndependentWindow: windowMocks.show,
+}));
+
+/**
+ * 创建已连接事件流替身。
+ *
+ * 运行上下文：页面测试只观察插件快照和用户操作，不建立真实网络连接。
+ * 失败语义：测试主动注入的消息由调用方保存 callbacks 后发送。
+ */
 function createConnectedEventClient() {
   return {
     start(callbacks: {
@@ -45,52 +52,8 @@ const pluginSnapshot: PluginSnapshot = {
   activeConnections: 0,
 };
 
-const pluginDetails: PluginDetails = {
-  snapshot: pluginSnapshot,
-  configSchema: {
-    type: "object",
-    title: "样例设置",
-    description: "仅用于验证表单契约。",
-    properties: {
-      endpoint: {
-        type: "string",
-        title: "Endpoint",
-        description: "上游地址",
-        enum: [],
-        default: null,
-        format: "",
-        xAdvanced: false,
-        minimum: null,
-        maximum: null,
-        minLength: null,
-        maxLength: null,
-      },
-      token: {
-        type: "string",
-        title: "Token",
-        description: "访问令牌",
-        enum: [],
-        default: null,
-        format: "password",
-        xAdvanced: false,
-        minimum: null,
-        maximum: null,
-        minLength: null,
-        maxLength: null,
-      },
-    },
-    required: ["endpoint", "token"],
-    additionalProperties: false,
-  },
-  configuration: { endpoint: "https://before.test" },
-  configuredSecretFields: ["token"],
-};
-
 describe("插件管理页面", () => {
-  /**
-   * 可见安装按钮必须在点击事件内触发文件输入，保证桌面 WebView 可以显示系统文件选择器。
-   * 文件输入只服务于原生选择器，必须完全退出辅助功能树，避免浏览器额外暴露无名称控件。
-   */
+  /** 可见安装按钮必须在点击事件内触发隐藏文件输入。 */
   it("点击安装插件包会直接打开文件选择器且不暴露重复控件", async () => {
     const user = userEvent.setup();
     const controlClient = createControlClientStub(createServiceSnapshot(), {
@@ -116,21 +79,15 @@ describe("插件管理页面", () => {
       screen.getByRole("button", { name: i18n.t("plugins.install") }),
     );
 
-    expect(openChooser).toHaveBeenCalledTimes(1);
+    expect(openChooser).toHaveBeenCalledOnce();
   });
 
-  /** 秘密字段仅显示已配置状态，保存普通字段时请求体不携带旧秘密值。 */
-  it("脱敏展示并保留未修改的密码字段", async () => {
+  /** 插件主页面只保留窗口入口，配置表单不得重复挂载。 */
+  it("通过唯一按钮打开插件独立窗口且主页面不嵌入配置表单", async () => {
     const user = userEvent.setup();
-    const updatePluginConfiguration = vi.fn(async () => pluginDetails);
+    windowMocks.show.mockResolvedValue(undefined);
     const controlClient = createControlClientStub(
-      createServiceSnapshot({
-        plugins: [pluginSnapshot],
-      }),
-      {
-        getPluginDetails: async () => pluginDetails,
-        updatePluginConfiguration,
-      },
+      createServiceSnapshot({ plugins: [pluginSnapshot] }),
     );
 
     render(
@@ -142,30 +99,21 @@ describe("插件管理页面", () => {
       </ServiceProvider>,
     );
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: i18n.t("plugins.title") }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    const endpointInput = await screen.findByRole("textbox", {
-      name: /Endpoint/,
-    });
-    expect(screen.queryByDisplayValue("secret-value")).not.toBeInTheDocument();
-    await user.clear(endpointInput);
-    await user.type(endpointInput, "https://after.test");
     await user.click(
-      screen.getByRole("button", { name: i18n.t("plugins.saveConfiguration") }),
+      await screen.findByRole("button", {
+        name: i18n.t("plugins.openWindow"),
+      }),
     );
 
-    await waitFor(() =>
-      expect(updatePluginConfiguration).toHaveBeenCalledTimes(1),
-    );
-    expect(updatePluginConfiguration).toHaveBeenCalledWith("sample.plugin", {
-      configuration: { endpoint: "https://after.test" },
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(windowMocks.show).toHaveBeenCalledWith({
+      kind: "plugin",
+      pluginId: pluginSnapshot.id,
+      pluginName: pluginSnapshot.name,
     });
   });
 
-  /** 验证插件连接计数直接消费 SSE 增量，运行态变化不会放大为插件列表 GET。 */
+  /** 连接计数由 SSE 增量更新，不放大为插件列表轮询。 */
   it("实时呈现插件连接计数且不重新查询列表", async () => {
     let callbacks: EventClientCallbacks | null = null;
     const eventClient: EventStreamClient = {
@@ -180,7 +128,6 @@ describe("插件管理页面", () => {
       plugins: [pluginSnapshot],
     });
     const controlClient = createControlClientStub(initialSnapshot, {
-      getPluginDetails: async () => pluginDetails,
       listPlugins,
     });
 
@@ -211,19 +158,10 @@ describe("插件管理页面", () => {
     expect(listPlugins).not.toHaveBeenCalled();
   });
 
-  it("重载成功后重新读取插件详情与配置架构", async () => {
+  /** 重载只管理生命周期，插件配置仍归独立窗口所有。 */
+  it("重载动作不在主页面读取插件配置", async () => {
     const user = userEvent.setup();
-    const reloadedDetails: PluginDetails = {
-      ...pluginDetails,
-      configSchema: {
-        ...pluginDetails.configSchema!,
-        title: "重载后的设置",
-      },
-    };
-    const getPluginDetails = vi
-      .fn<() => Promise<PluginDetails>>()
-      .mockResolvedValueOnce(pluginDetails)
-      .mockResolvedValueOnce(reloadedDetails);
+    const getPluginDetails = vi.fn();
     const reloadPlugin = vi.fn(async () => pluginSnapshot);
     const controlClient = createControlClientStub(
       createServiceSnapshot({ plugins: [pluginSnapshot] }),
@@ -238,13 +176,13 @@ describe("插件管理页面", () => {
         <PluginManagerPage />
       </ServiceProvider>,
     );
-    await screen.findByText(pluginDetails.configSchema!.title);
+    await screen.findByRole("heading", { name: pluginSnapshot.name });
     await user.click(
       screen.getByRole("button", { name: i18n.t("plugins.reload") }),
     );
 
-    await screen.findByText("重载后的设置");
+    await waitFor(() => expect(reloadPlugin).toHaveBeenCalledOnce());
     expect(reloadPlugin).toHaveBeenCalledWith(pluginSnapshot.id);
-    expect(getPluginDetails).toHaveBeenCalledTimes(2);
+    expect(getPluginDetails).not.toHaveBeenCalled();
   });
 });

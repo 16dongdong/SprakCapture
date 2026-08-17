@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use socks5_core::model::TrafficDirection;
-use socks5_core::registry::SessionRegistry;
+use socks5_core::registry::{ModifiedTraffic, SessionRegistry};
 
 const legacyCapturedStreamLimit: usize = 8 * 1024 * 1024;
 const allocatedChunkBudget: usize = 64 * 1024;
@@ -16,12 +16,12 @@ const allocatedChunkBudget: usize = 64 * 1024;
 fn modifiedTrafficKeepsFinalBytesAndDifference() {
     let registry = SessionRegistry::new(8);
     let sessionId = registry.create("127.0.0.1:10000".to_owned());
-    registry.addModifiedTraffic(
-        &sessionId,
-        TrafficDirection::Up,
-        &[0x03, 0x06, 0x02, 0x01],
-        &[0x03, 0x06, 0x02, 0x00],
-    );
+    registry.addModifiedTraffic(ModifiedTraffic {
+        sessionId: &sessionId,
+        direction: TrafficDirection::Up,
+        originalPayload: &[0x03, 0x06, 0x02, 0x01],
+        payload: &[0x03, 0x06, 0x02, 0x00],
+    });
 
     let snapshot = registry.snapshots().pop().expect("应保留活动会话");
     assert_eq!(

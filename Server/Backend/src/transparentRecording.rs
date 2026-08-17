@@ -7,9 +7,9 @@ use std::{collections::BTreeMap, io};
 
 use bytes::Bytes;
 use capture_core::{
-    BeginTransaction, BodySpool, CaptureError, MessageSide, RecordingRuleAction, RecordingSession,
-    StreamPacket, StreamPacketAction, StreamPacketModification, TransactionCompletion,
-    TransactionError, TransactionProtocol, TransactionUserUpdate, currentTimeMilliseconds,
+    BeginTransaction, BodySpool, CaptureError, MessageSide, RecordingSession, StreamPacket,
+    StreamPacketAction, StreamPacketModification, TransactionCompletion, TransactionError,
+    TransactionProtocol, currentTimeMilliseconds,
 };
 use location_core::ResolvedLocation;
 use plugin_host::{
@@ -42,64 +42,6 @@ impl TransparentRecording {
             recording,
             tasks: TaskTracker::new(),
         }
-    }
-
-    /// 对尚未连接上游的透明 TCP 目标执行录制规则裁决；域名来自已验证的 HTTP Host/TLS SNI 或原始 IP。
-    pub fn decision(
-        &self,
-        clientAddress: std::net::SocketAddr,
-        clientProcessName: Option<String>,
-        clientProcessId: u32,
-        targetHost: &str,
-        targetPort: u16,
-    ) -> RecordingRuleAction {
-        self.recording.recordingDecision(&transparentRuleInput(
-            clientAddress,
-            clientProcessName,
-            clientProcessId,
-            targetHost,
-            targetPort,
-        ))
-    }
-
-    /// 为被规则拒绝的透明连接创建 blocked 事务；该路径不建立远端 socket，也不读取客户端正文。
-    pub async fn recordRejected(
-        &self,
-        clientAddress: std::net::SocketAddr,
-        clientProcessName: Option<String>,
-        clientProcessId: u32,
-        targetHost: &str,
-        targetPort: u16,
-    ) -> Result<(), CaptureError> {
-        let input = transparentRuleInput(
-            clientAddress,
-            clientProcessName,
-            clientProcessId,
-            targetHost,
-            targetPort,
-        );
-        let Some(transactionId) = self.recording.beginTransaction(input).await? else {
-            return Ok(());
-        };
-        self.recording
-            .updateUserFields(
-                &transactionId,
-                TransactionUserUpdate {
-                    appliedTools: Some(vec!["recordingRules".to_owned()]),
-                    ..TransactionUserUpdate::default()
-                },
-            )
-            .await?;
-        self.recording
-            .block(
-                &transactionId,
-                TransactionCompletion {
-                    statusCode: 403,
-                    endAtMilliseconds: currentTimeMilliseconds(),
-                    contentType: String::new(),
-                },
-            )
-            .await
     }
 
     /// 中继一条 Raw/RawTls 透明连接并完整录制双向正文。
@@ -231,38 +173,6 @@ impl TransparentRecording {
             events: eventSender,
             completion: completionReceiver,
         }))
-    }
-}
-
-/// 构造透明连接在建立上游前可确定的规则输入；应用层分类尚未完成，因此协议稳定表示为 tcp。
-fn transparentRuleInput(
-    clientAddress: std::net::SocketAddr,
-    clientProcessName: Option<String>,
-    clientProcessId: u32,
-    targetHost: &str,
-    targetPort: u16,
-) -> BeginTransaction {
-    let displayHost = if targetHost.contains(':') && !targetHost.starts_with('[') {
-        format!("[{targetHost}]")
-    } else {
-        targetHost.to_owned()
-    };
-    BeginTransaction {
-        protocol: TransactionProtocol::Tunnel,
-        method: "CONNECT".to_owned(),
-        location: ResolvedLocation {
-            protocol: "tcp".to_owned(),
-            host: targetHost.to_owned(),
-            port: targetPort,
-            path: String::new(),
-            query: String::new(),
-            display: format!("tcp://{displayHost}:{targetPort}"),
-        },
-        clientAddress: clientAddress.to_string(),
-        clientProcessName,
-        clientProcessId: Some(clientProcessId),
-        contentType: binaryContentType.to_owned(),
-        startAtMilliseconds: currentTimeMilliseconds(),
     }
 }
 

@@ -39,9 +39,10 @@ use std::{convert::Infallible, time::Duration};
 
 use super::{
     ConfigurationUpdate, ControlSnapshot, ControlState, ListenerSnapshots, PublicConfiguration,
-    ServiceState, ToolsPublicState, listenerControl, mapLocalImport, mcpControl,
-    mediaPreviewControl, pluginControl, processControl, protocolControl, repeatControl, sslControl,
-    toolControl, waitForControlShutdown,
+    ServiceState, ToolsPublicState, accountServiceControl, accountServiceMapping,
+    clientPackageControl, listenerControl, mapLocalImport, mcpControl, mediaPreviewControl,
+    pluginControl, processControl, protocolControl, repeatControl, sslControl, toolControl,
+    uiContextControl, waitForControlShutdown,
 };
 use crate::localization::{
     ErrorCode, Locale, MessageParams, RequestLocale, localizeError, resolveRequestLocale,
@@ -49,13 +50,15 @@ use crate::localization::{
 use crate::transactionProjection::TransactionPage;
 
 // Web 开发、桌面联调和端到端验证使用固定本机端口；显式列出 Origin，避免放宽为通配符。
-const allowedControlOrigins: [&str; 7] = [
+const allowedControlOrigins: [&str; 9] = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
     "http://127.0.0.1:5174",
     "http://localhost:5174",
     "http://127.0.0.1:5175",
     "http://localhost:5175",
+    "http://127.0.0.1:17890",
+    "http://localhost:17890",
     "http://tauri.localhost",
 ];
 
@@ -197,7 +200,7 @@ pub enum EventMessage {
     Configuration {
         serverInstanceId: String,
         revision: u64,
-        configuration: PublicConfiguration,
+        configuration: Box<PublicConfiguration>,
     },
     Ssl {
         serverInstanceId: String,
@@ -290,10 +293,12 @@ pub fn createControlRouter(state: ControlState) -> Router {
         .route("/api/v1/service/start", post(startService))
         .route("/api/v1/service/stop", post(stopService))
         .route("/api/v1/configuration", put(replaceConfiguration));
-    mcpControl::addRoutes(mediaPreviewControl::addRoutes(processControl::addRoutes(
-        protocolControl::addRoutes(repeatControl::addRoutes(mapLocalImport::addRoutes(
-            toolControl::addRoutes(pluginControl::addRoutes(listenerControl::addRoutes(
-                sslControl::addRoutes(router),
+    uiContextControl::addRoutes(clientPackageControl::addRoutes(mcpControl::addRoutes(
+        mediaPreviewControl::addRoutes(processControl::addRoutes(protocolControl::addRoutes(
+            repeatControl::addRoutes(mapLocalImport::addRoutes(toolControl::addRoutes(
+                pluginControl::addRoutes(listenerControl::addRoutes(
+                    accountServiceControl::addRoutes(sslControl::addRoutes(router)),
+                )),
             ))),
         ))),
     )))
@@ -314,6 +319,7 @@ pub fn createControlRouter(state: ControlState) -> Router {
     .route("/api/v1/events/sse", get(streamServerSentEvents))
     .layer(corsLayer)
     .layer(middleware::from_fn(validateControlOrigin))
+    .merge(accountServiceMapping::routes())
     .layer(middleware::from_fn(applyControlCachePolicy))
     .with_state(state)
 }
@@ -639,6 +645,24 @@ impl ApiError {
     pub(super) fn conflict(code: ErrorCode) -> Self {
         Self {
             status: StatusCode::CONFLICT,
+            code,
+            params: MessageParams::new(),
+        }
+    }
+
+    /// 创建凭据认证失败；响应不得携带账号是否存在、禁用或过期等可枚举细节。
+    pub(super) fn unauthorized(code: ErrorCode) -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            code,
+            params: MessageParams::new(),
+        }
+    }
+
+    /// 创建依赖服务暂不可用错误；用于明确区分输入错误、任务冲突与运行环境故障。
+    pub(super) fn unavailable(code: ErrorCode) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
             code,
             params: MessageParams::new(),
         }

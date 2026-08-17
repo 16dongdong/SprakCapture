@@ -83,7 +83,7 @@ pub fn hideWindow<R: Runtime>(
         .map_err(|error| WindowLifecycleError::new(windowLabel, "隐藏", error))
 }
 
-/// 根据当前可见状态切换同一个窗口，避免为显示和隐藏维护两套事件处理逻辑。
+/// 根据当前可见状态切换窗口；显示悬浮面板时同步隐藏主窗口，保持两个常驻入口互斥。
 pub fn toggleWindow<R: Runtime>(
     appHandle: &AppHandle<R>,
     windowLabel: &str,
@@ -95,7 +95,12 @@ pub fn toggleWindow<R: Runtime>(
     if isVisible {
         return hideWindow(appHandle, windowLabel);
     }
-    showWindow(appHandle, windowLabel)
+    showWindow(appHandle, windowLabel)?;
+    if windowLabel == floatingWindowLabel {
+        // 托盘显示悬浮面板与主界面按钮使用同一互斥规则，避免两个常驻入口同时占用桌面。
+        hideWindow(appHandle, mainWindowLabel)?;
+    }
+    Ok(())
 }
 
 /// 将主工作区切入后台：先显示悬浮面板，再隐藏主窗口，确保代理继续运行时始终保留可见入口。

@@ -97,6 +97,11 @@ pub enum ErrorCode {
     InvalidProcessSelectionRequest,
     ProcessSelectionOperationFailed,
     ConfigurationPersistenceFailed,
+    ClientPackageBusy,
+    ClientPackageAuthenticationFailed,
+    ClientPackageServiceUnavailable,
+    ClientPackageOperationFailed,
+    ClientNodeUnavailable,
 }
 
 impl ErrorCode {
@@ -153,6 +158,11 @@ impl ErrorCode {
             Self::InvalidProcessSelectionRequest => "error.invalidProcessSelectionRequest",
             Self::ProcessSelectionOperationFailed => "error.processSelectionOperationFailed",
             Self::ConfigurationPersistenceFailed => "error.configurationPersistenceFailed",
+            Self::ClientPackageBusy => "error.clientPackageBusy",
+            Self::ClientPackageAuthenticationFailed => "error.clientPackageAuthenticationFailed",
+            Self::ClientPackageServiceUnavailable => "error.clientPackageServiceUnavailable",
+            Self::ClientPackageOperationFailed => "error.clientPackageOperationFailed",
+            Self::ClientNodeUnavailable => "error.clientNodeUnavailable",
         }
     }
 }

@@ -4,6 +4,8 @@ import {
   encodedBodyResponseSchema,
   configurationUpdateSchema,
   eventMessageSchema,
+  managementApiKeyResponseSchema,
+  managementIdentitySchema,
   publicConfigurationSchema,
   recordingResponseSchema,
   recordingUpdateSchema,
@@ -21,6 +23,25 @@ import {
 } from "#tests/testFixtures";
 
 describe("控制协议校验", () => {
+  it("管理员身份协议拒绝密码字段且完整 Key 仅由直接响应承载", () => {
+    const identity = {
+      username: "Admin",
+      credentialRevision: 1,
+      apiKeyPrefix: "sak_v1_test_••••",
+      apiKeyCreatedAt: 10,
+    };
+    expect(managementIdentitySchema.parse(identity)).toEqual(identity);
+    expect(
+      managementIdentitySchema.safeParse({ ...identity, password: "secret" })
+        .success,
+    ).toBe(false);
+    expect(
+      managementApiKeyResponseSchema.parse({
+        identity,
+        apiKey: "sak_v1_secret",
+      }),
+    ).toEqual({ identity, apiKey: "sak_v1_secret" });
+  });
   it("接受英文机器状态和毫秒时间戳", () => {
     const parsedSnapshot = serviceSnapshotSchema.parse(
       createServiceSnapshot(),
@@ -156,6 +177,11 @@ describe("控制协议校验", () => {
     } = createServiceSnapshot().configuration;
     const completeUpdate = {
       ...editableConfiguration,
+      multiAccount: {
+        enabled: editableConfiguration.multiAccount.enabled,
+        remoteHost: editableConfiguration.multiAccount.remoteHost,
+        remotePort: editableConfiguration.multiAccount.remotePort,
+      },
       upstreamProxy: {
         enabled: editableConfiguration.upstreamProxy.enabled,
         protocol: editableConfiguration.upstreamProxy.protocol,

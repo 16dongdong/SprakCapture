@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -239,9 +239,167 @@ describe("设置页面导航", () => {
     const { container } = renderSettingsPage("listener", snapshot);
 
     await screen.findByText("HTTP / SOCKS5 融合监听");
+    expect(
+      screen.getByRole("checkbox", { name: /启动时自动开启服务/ }),
+    ).not.toBeChecked();
     expect(screen.getByText("认证模式")).toBeInTheDocument();
     expect(screen.queryByText("WinDivert 进程捕获")).not.toBeInTheDocument();
     expect(container.querySelector('a[href="/settings/authentication"]')).toBeNull();
+  });
+
+  it("代理设置提交时持久化启动自动开启服务开关", async () => {
+    const user = userEvent.setup();
+    const snapshot = createServiceSnapshot();
+    const updateConfiguration = vi.fn(async () => snapshot);
+    renderSettingsPage("listener", snapshot, { updateConfiguration });
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: /启动时自动开启服务/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "应用配置" }));
+
+    expect(updateConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({ startServiceOnLaunch: true }),
+    );
+  });
+
+  it("远程管理设置提交唯一 Web 端点且不改写保存的单账号认证", async () => {
+    const user = userEvent.setup();
+    const snapshot = createServiceSnapshot();
+    const updateConfiguration = vi.fn(async () => snapshot);
+    const { container } = renderSettingsPage("multiAccount", snapshot, {
+      updateConfiguration,
+    });
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: /启用远程管理/ }),
+    );
+    fireEvent.change(screen.getByRole("spinbutton", { name: "远程管理端口" }), {
+      target: { value: "19091", valueAsNumber: 19_091 },
+    });
+    expect(container.querySelector(":invalid")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "应用配置" }));
+
+    expect(updateConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authenticationMode: "none",
+        multiAccount: {
+          enabled: true,
+          remoteHost: "0.0.0.0",
+          remotePort: 19_091,
+        },
+      }),
+    );
+  });
+
+  it("设置页不再提供账号管理页面入口", async () => {
+    const baseline = createServiceSnapshot();
+    const snapshot = createServiceSnapshot({
+      configuration: {
+        ...baseline.configuration,
+        multiAccount: {
+          ...baseline.configuration.multiAccount,
+          enabled: true,
+          state: "running",
+        },
+      },
+    });
+    renderSettingsPage("multiAccount", snapshot);
+
+    expect(await screen.findAllByDisplayValue("Admin")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "打开账号管理页面" })).toBeNull();
+  });
+
+  it("管理员设置直接保存新凭据且不展示独立 Key 轮换入口", async () => {
+    const user = userEvent.setup();
+    const baseline = createServiceSnapshot();
+    const snapshot = createServiceSnapshot({
+      configuration: {
+        ...baseline.configuration,
+        multiAccount: {
+          ...baseline.configuration.multiAccount,
+          enabled: true,
+          state: "running",
+        },
+      },
+    });
+    const updateManagementIdentity = vi.fn(async (username: string) => ({
+      identity: {
+        username,
+        credentialRevision: 2,
+        apiKeyPrefix: "sak_v1_new_••••",
+        apiKeyCreatedAt: snapshot.revision,
+      },
+      apiKey: "sak_v1_new_secret",
+    }));
+    renderSettingsPage("multiAccount", snapshot, { updateManagementIdentity });
+
+    expect(await screen.findAllByDisplayValue("Admin")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "轮换 API Key" })).toBeNull();
+    await user.clear(screen.getByLabelText("新管理员账号"));
+    await user.type(screen.getByLabelText("新管理员账号"), "Operator");
+    await user.type(screen.getByLabelText("新管理员密码"), "NewPassword");
+    await user.click(screen.getByRole("button", { name: "保存管理员配置" }));
+
+    expect(updateManagementIdentity).toHaveBeenCalledWith("Operator", "NewPassword");
+    expect(await screen.findByRole("button", { name: "复制 API Key" })).toBeInTheDocument();
+  });
+
+  it("远程管理运行时应用普通配置不要求填写新管理员密码", async () => {
+    const user = userEvent.setup();
+    const baseline = createServiceSnapshot();
+    const snapshot = createServiceSnapshot({
+      configuration: {
+        ...baseline.configuration,
+        multiAccount: {
+          ...baseline.configuration.multiAccount,
+          enabled: true,
+          state: "running",
+        },
+      },
+    });
+    const updateConfiguration = vi.fn(async () => snapshot);
+    const { container } = renderSettingsPage("multiAccount", snapshot, {
+      updateConfiguration,
+    });
+
+    await screen.findAllByDisplayValue("Admin");
+    expect(screen.getByLabelText("新管理员密码")).not.toBeRequired();
+    expect(container.querySelector(":invalid")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "应用配置" }));
+
+    expect(updateConfiguration).toHaveBeenCalledOnce();
+  });
+
+  it("获取当前 API Key 时不收集或发送管理员密码", async () => {
+    const user = userEvent.setup();
+    const baseline = createServiceSnapshot();
+    const snapshot = createServiceSnapshot({
+      configuration: {
+        ...baseline.configuration,
+        multiAccount: {
+          ...baseline.configuration.multiAccount,
+          enabled: true,
+          state: "running",
+        },
+      },
+    });
+    const getManagementApiKey = vi.fn(async () => ({
+      identity: {
+        username: "Admin",
+        credentialRevision: 1,
+        apiKeyPrefix: "sak_v1_test_••••",
+        apiKeyCreatedAt: snapshot.revision,
+      },
+      apiKey: "sak_v1_test_secret",
+    }));
+    renderSettingsPage("multiAccount", snapshot, { getManagementApiKey });
+
+    await user.click(await screen.findByRole("button", { name: "获取并复制 API Key" }));
+
+    expect(getManagementApiKey).toHaveBeenCalledWith();
+    expect(screen.queryByLabelText("当前密码")).toBeNull();
+    expect(await screen.findByDisplayValue("sak_v1_test_secret")).toBeInTheDocument();
   });
 
   it("明确清空二级代理口令时提交空字符串而不是保留标记", async () => {

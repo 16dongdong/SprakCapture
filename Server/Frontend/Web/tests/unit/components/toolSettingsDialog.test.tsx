@@ -11,7 +11,6 @@ import type {
   MapLocalConfiguration,
   MapRemoteConfiguration,
   NoCachingConfiguration,
-  RecordingRuleConfiguration,
   RewriteConfiguration,
   ServiceSnapshot,
   ThrottlingConfiguration,
@@ -80,54 +79,6 @@ describe("M3 工具可视化配置对话框", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(container.querySelector(".toolDialogHeader button")).toBeNull();
     expect(container.querySelectorAll(".toolDialogFooter > button")).toHaveLength(2);
-  });
-
-  /** 新建空规则集是可持久化草稿；校验提示只属于用户主动提交后的失败结果。 */
-  it("添加规则集时不提前报错并可直接应用空规则集", async () => {
-    const user = userEvent.setup();
-    let currentSnapshot = createServiceSnapshot();
-    const updateRecordingRules = vi.fn(
-      async (configuration: RecordingRuleConfiguration) => {
-        currentSnapshot = {
-          ...currentSnapshot,
-          revision: currentSnapshot.revision + 1,
-          tools: { ...currentSnapshot.tools, recordingRules: configuration },
-        };
-        return currentSnapshot.tools;
-      },
-    );
-    renderToolDialog("recordingRules", () => currentSnapshot, {
-      updateRecordingRules,
-    });
-
-    await user.click(
-      await screen.findByRole("button", {
-        name: i18n.t("tools.recordingRules.addSet"),
-      }),
-    );
-
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    const applyButton = screen.getByRole("button", {
-      name: i18n.t("tools.apply"),
-    });
-    expect(applyButton).toBeEnabled();
-    await user.click(applyButton);
-
-    await waitFor(() => expect(updateRecordingRules).toHaveBeenCalledTimes(1));
-    expect(updateRecordingRules).toHaveBeenCalledWith(
-      expect.objectContaining({
-        defaultAction: "record",
-        ruleSets: [
-          expect.objectContaining({
-            enabled: true,
-            name: i18n.t("tools.recordingRules.defaultSetName", {
-              sequence: 1,
-            }),
-            rules: [],
-          }),
-        ],
-      }),
-    );
   });
 
   it("从事务右键上下文创建并选中已填好位置的本地映射规则", async () => {

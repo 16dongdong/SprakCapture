@@ -272,6 +272,16 @@ pub struct CapturedPacketList {
     storage: Arc<RwLock<CapturedPacketStorage>>,
 }
 
+/// 描述单个已录制转发片段的完整写入信息；索引层据此原子分配方向序号并保存元数据。
+pub(crate) struct CapturedPacketWrite {
+    pub direction: TrafficDirection,
+    pub capturedAtMilliseconds: u64,
+    pub storedOffsetBytes: usize,
+    pub storedBytes: usize,
+    pub originalBytes: u64,
+    pub modifications: Vec<plugin_host::WireByteModification>,
+}
+
 impl CapturedPacketList {
     /// 创建完整片段索引；每个成功转发的非空片段都必须有可追溯的偏移和长度。
     pub(crate) fn new() -> Self {
@@ -285,15 +295,15 @@ impl CapturedPacketList {
     }
 
     /// 记录一个已录制字节区间；未录制任何字节的片段没有可查看载荷，因此不进入索引。
-    pub(crate) fn append(
-        &self,
-        direction: TrafficDirection,
-        capturedAtMilliseconds: u64,
-        storedOffsetBytes: usize,
-        storedBytes: usize,
-        originalBytes: u64,
-        modifications: Vec<plugin_host::WireByteModification>,
-    ) {
+    pub(crate) fn append(&self, packet: CapturedPacketWrite) {
+        let CapturedPacketWrite {
+            direction,
+            capturedAtMilliseconds,
+            storedOffsetBytes,
+            storedBytes,
+            originalBytes,
+            modifications,
+        } = packet;
         if storedBytes == 0 {
             return;
         }

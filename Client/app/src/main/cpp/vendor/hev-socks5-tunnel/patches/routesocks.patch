@@ -1,0 +1,1022 @@
+diff --git a/Android.mk b/Android.mk
+index a1d9c8f..5f450a4 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -30,7 +30,8 @@ SRCDIR := $(LOCAL_PATH)/src
+
+ include $(CLEAR_VARS)
+ include $(LOCAL_PATH)/build.mk
+-LOCAL_MODULE    := hev-socks5-tunnel
++# HEV 只作为 routesocks 的内部静态数据面，不单独向 APK 暴露共享库。
++LOCAL_MODULE    := hev-socks5-tunnel-static
+ LOCAL_SRC_FILES := $(patsubst $(SRCDIR)/%,src/%,$(SRCFILES))
+ LOCAL_C_INCLUDES := \
+	$(LOCAL_PATH)/src/misc \
+@@ -39,9 +40,11 @@ LOCAL_C_INCLUDES := \
+	$(LOCAL_PATH)/third-part/lwip/src/include \
+	$(LOCAL_PATH)/third-part/lwip/src/ports/include \
+	$(LOCAL_PATH)/third-part/hev-task-system/include
+-LOCAL_CFLAGS += -DFD_SET_DEFINED -DSOCKLEN_T_DEFINED $(VERSION_CFLAGS)
++# Kotlin 使用上游兼容类 hev.sockstun.TProxyService；固定包名可避免发行构建
++# 因默认 hev.htproxy 注册路径不同而在 JNI_OnLoad 阶段失败。
++LOCAL_CFLAGS += -DFD_SET_DEFINED -DSOCKLEN_T_DEFINED -DPKGNAME=hev/sockstun $(VERSION_CFLAGS)
+ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+ LOCAL_CFLAGS += -mfpu=neon
+ endif
+ LOCAL_STATIC_LIBRARIES := yaml lwip hev-task-system
+-include $(BUILD_SHARED_LIBRARY)
++include $(BUILD_STATIC_LIBRARY)
+diff --git a/include/hev-flow-classifier.h b/include/hev-flow-classifier.h
+new file mode 100644
+index 0000000..36369ae
+--- /dev/null
++++ b/include/hev-flow-classifier.h
+@@ -0,0 +1,34 @@
++#ifndef HEV_FLOW_CLASSIFIER_H
++#define HEV_FLOW_CLASSIFIER_H
++
++#include <stdint.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++typedef struct HevFlowTuple HevFlowTuple;
++typedef int (*HevFlowClassifier) (const HevFlowTuple *flow);
++
++struct HevFlowTuple
++{
++    uint8_t protocol;
++    uint8_t family;
++    uint16_t source_port;
++    uint16_t destination_port;
++    uint8_t source_address[16];
++    uint8_t destination_address[16];
++};
++
++/*
++ * 登记会话五元组分类器和选中应用入口端口。
++ * 端口字段使用主机序，地址字段保持网络字节序；返回 -1 的流不会建立 SOCKS 会话。
++ */
++void hev_socks5_tunnel_set_flow_classifier (HevFlowClassifier classifier,
++                                             uint16_t selected_port);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/include/hev-socks5-tunnel.h b/include/hev-socks5-tunnel.h
+index 2508be6..49896b9 120000
+--- a/include/hev-socks5-tunnel.h
++++ b/include/hev-socks5-tunnel.h
+@@ -1 +1,90 @@
+-../src/hev-main.h
+\ No newline at end of file
++/*
++ ============================================================================
++ Name        : hev-main.h
++ Author      : hev <r@hev.cc>
++ Copyright   : Copyright (c) 2019 - 2023 hev
++ Description : Main
++ ============================================================================
++ */
++
++#ifndef __HEV_MAIN_H__
++#define __HEV_MAIN_H__
++
++#include <stddef.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/**
++ * hev_socks5_tunnel_main:
++ * @config_path: config file path
++ * @tun_fd: tunnel file descriptor
++ *
++ * Start and run the socks5 tunnel, this function will blocks until the
++ * hev_socks5_tunnel_quit is called or an error occurs.
++ *
++ * Returns: returns zero on successful, otherwise returns -1.
++ *
++ * Since: 2.4.6
++ */
++int hev_socks5_tunnel_main (const char *config_path, int tun_fd);
++
++/**
++ * hev_socks5_tunnel_main_from_file:
++ * @config_path: config file path
++ * @tun_fd: tunnel file descriptor
++ *
++ * Start and run the socks5 tunnel, this function will blocks until the
++ * hev_socks5_tunnel_quit is called or an error occurs.
++ *
++ * Returns: returns zero on successful, otherwise returns -1.
++ *
++ * Since: 2.6.7
++ */
++int hev_socks5_tunnel_main_from_file (const char *config_path, int tun_fd);
++
++/**
++ * hev_socks5_tunnel_main_from_str:
++ * @config_str: string config
++ * @config_len: the byte length of string config
++ * @tun_fd: tunnel file descriptor
++ *
++ * Start and run the socks5 tunnel, this function will blocks until the
++ * hev_socks5_tunnel_quit is called or an error occurs.
++ *
++ * Returns: returns zero on successful, otherwise returns -1.
++ *
++ * Since: 2.6.7
++ */
++int hev_socks5_tunnel_main_from_str (const unsigned char *config_str,
++                                     unsigned int config_len, int tun_fd);
++
++/**
++ * hev_socks5_tunnel_quit:
++ *
++ * Stop the socks5 tunnel.
++ *
++ * Since: 2.4.6
++ */
++void hev_socks5_tunnel_quit (void);
++
++/**
++ * hev_socks5_tunnel_stats:
++ * @tx_packets (out): transmitted packets
++ * @tx_bytes (out): transmitted bytes
++ * @rx_packets (out): received packets
++ * @rx_bytes (out): received bytes
++ *
++ * Retrieve tunnel interface traffic statistics.
++ *
++ * Since: 2.6.5
++ */
++void hev_socks5_tunnel_stats (size_t *tx_packets, size_t *tx_bytes,
++                              size_t *rx_packets, size_t *rx_bytes);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* __HEV_MAIN_H__ */
+diff --git a/src/hev-flow-classifier.c b/src/hev-flow-classifier.c
+new file mode 100644
+index 0000000..7cfb089
+--- /dev/null
++++ b/src/hev-flow-classifier.c
+@@ -0,0 +1,69 @@
++#include "hev-flow-classifier.h"
++
++#include <string.h>
++
++static HevFlowClassifier flow_classifier;
++static uint16_t selected_socks_port;
++
++/*
++ * 在 Java 启动 Native 数据面时登记五元组分类回调和选中应用入口端口。
++ * HEV 会话线程只读取这两个值；调用方必须在 HEV 接收 TUN 流量前完成登记。
++ */
++void
++hev_socks5_tunnel_set_flow_classifier (HevFlowClassifier classifier,
++                                        uint16_t selected_port)
++{
++    flow_classifier = classifier;
++    selected_socks_port = selected_port;
++}
++
++/*
++ * 把 lwIP 地址复制到稳定的 16 字节跨 SO 结构；IPv4 仅使用前四字节，其余清零。
++ * 输入地址由会话 PCB 持有且仅在当前调用有效，输出由调用者提供。
++ */
++static void
++copy_address (const ip_addr_t *address, uint8_t *output)
++{
++    memset (output, 0, 16);
++    if (IP_IS_V6 (address))
++        memcpy (output, ip_2_ip6 (address), 16);
++    else
++        memcpy (output, ip_2_ip4 (address), 4);
++}
++
++/*
++ * 在 lwIP 仍保留应用源端点的位置完成一次 UID 归属分类。
++ * lwIP 在 tcp_input/udp_input 入口已经把报文端口转换成主机序，跨 SO 结构保持该语义，
++ * 由 JNI 桥接再编码为稳定网络序；重复 ntohs 会在 ARM 小端机器把 443 变成 47873。
++ * 未登记回调表示单作用域配置并选择全局入口；分类器返回负数时上层丢弃会话。
++ */
++int
++hev_flow_classify (uint8_t protocol, const ip_addr_t *source,
++                   uint16_t source_port, const ip_addr_t *destination,
++                   uint16_t destination_port)
++{
++    HevFlowTuple tuple;
++
++    if (!flow_classifier)
++        return 0;
++
++    memset (&tuple, 0, sizeof (tuple));
++    tuple.protocol = protocol;
++    tuple.family = IP_IS_V6 (source) ? 6 : 4;
++    tuple.source_port = source_port;
++    tuple.destination_port = destination_port;
++    copy_address (source, tuple.source_address);
++    copy_address (destination, tuple.destination_address);
++
++    return flow_classifier (&tuple);
++}
++
++/*
++ * 返回选中应用专用 SOCKS 入口端口；零值只会出现在启动契约被破坏时，
++ * 会话层将其视为无法连接而关闭，不静默回退到错误作用域。
++ */
++uint16_t
++hev_flow_selected_port (void)
++{
++    return selected_socks_port;
++}
+diff --git a/src/hev-flow-classifier.h b/src/hev-flow-classifier.h
+new file mode 100644
+index 0000000..c2a2ce1
+--- /dev/null
++++ b/src/hev-flow-classifier.h
+@@ -0,0 +1,13 @@
++#ifndef HEV_INTERNAL_FLOW_CLASSIFIER_H
++#define HEV_INTERNAL_FLOW_CLASSIFIER_H
++
++#include <lwip/ip_addr.h>
++
++#include "../include/hev-flow-classifier.h"
++
++int hev_flow_classify (uint8_t protocol, const ip_addr_t *source,
++                       uint16_t source_port, const ip_addr_t *destination,
++                       uint16_t destination_port);
++uint16_t hev_flow_selected_port (void);
++
++#endif
+diff --git a/src/hev-jni.c b/src/hev-jni.c
+index ca2caa2..46b5a6f 100644
+--- a/src/hev-jni.c
++++ b/src/hev-jni.c
+@@ -12,6 +12,8 @@
+ #include <jni.h>
+ #include <pthread.h>
+
++#include <errno.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <signal.h>
+@@ -45,18 +47,24 @@ struct _ThreadData
+ static JavaVM *java_vm;
+ static pthread_t work_thread;
+ static pthread_mutex_t mutex;
++static pthread_cond_t startup_condition;
+ static pthread_key_t current_jni_env;
++static int startup_status;
++static int work_thread_active;
++static int worker_running;
++static int worker_exit_status;
+
+-static void native_start_service (JNIEnv *env, jobject thiz, jstring conig_path,
+-                                  jint fd);
++static jstring native_start_service (JNIEnv *env, jobject thiz,
++                                     jstring config_path, jint fd);
+ static void native_stop_service (JNIEnv *env, jobject thiz);
+-static jlongArray native_get_stats (JNIEnv *env, jobject thiz);
++static jstring native_runtime_error (JNIEnv *env, jobject thiz);
+
+ static JNINativeMethod native_methods[] = {
+-    { "TProxyStartService", "(Ljava/lang/String;I)V",
++    { "TProxyStartService", "(Ljava/lang/String;I)Ljava/lang/String;",
+       (void *)native_start_service },
+     { "TProxyStopService", "()V", (void *)native_stop_service },
+-    { "TProxyGetStats", "()[J", (void *)native_get_stats },
++    { "TProxyRuntimeError", "()Ljava/lang/String;",
++      (void *)native_runtime_error },
+ };
+
+ static void
+@@ -65,96 +73,284 @@ detach_current_thread (void *env)
+     (*java_vm)->DetachCurrentThread (java_vm);
+ }
+
++/*
++ * 把 HEV 初始化阶段发布给等待中的 Java 启动调用。
++ * 回调只写一次，避免停止过程或异常退出覆盖首次失败原因。
++ */
++static void
++startup_notify (int status)
++{
++    pthread_mutex_lock (&mutex);
++    if (startup_status == INT_MIN) {
++        startup_status = status;
++        pthread_cond_broadcast (&startup_condition);
++    }
++    pthread_mutex_unlock (&mutex);
++}
++
++/* 将 HEV 内部阶段码转换为可直接展示的中文原因；未知码保持精确而不伪造成功。 */
++static const char *
++startup_error (int status)
++{
++    switch (status) {
++    case -1:
++        return "HEV 配置解析失败";
++    case -2:
++        return "HEV 日志初始化失败";
++    case -3:
++        return "HEV SOCKS 日志初始化失败";
++    case -4:
++        return "HEV 任务系统初始化失败";
++    case -5:
++        return "HEV TUN 数据面初始化失败";
++    default:
++        return "HEV 初始化返回未知错误";
++    }
++}
++
++/* 创建 Java 错误字符串；JNI 内存不足时 VM 已保留异常，调用方仍不会得到伪成功。 */
++static jstring
++new_error (JNIEnv *env, const char *message)
++{
++    return (*env)->NewStringUTF (env, message);
++}
++
++/*
++ * 在持有 mutex 的启动失败路径停止并回收工作线程。
++ * request_quit 用于同步原语或超时失败；函数返回时锁已释放且进程级 HEV 状态恢复为未启动。
++ */
++static jstring
++abort_startup (JNIEnv *env, const char *message, int request_quit)
++{
++    pthread_mutex_unlock (&mutex);
++    if (request_quit)
++        hev_socks5_tunnel_quit ();
++    pthread_join (work_thread, NULL);
++    pthread_mutex_lock (&mutex);
++    work_thread = 0;
++    work_thread_active = 0;
++    worker_running = 0;
++    hev_socks5_tunnel_set_startup_notifier (NULL);
++    pthread_mutex_unlock (&mutex);
++    return new_error (env, message);
++}
++
++/*
++ * 注册 HEV 数据面方法并初始化其进程级同步状态。
++ * 宿主 libroutesocks.so 持有唯一 JNI_OnLoad，本函数失败时返回 JNI_ERR 并阻止半初始化数据面运行。
++ */
+ jint
+-JNI_OnLoad (JavaVM *vm, void *reserved)
++hev_jni_initialize (JavaVM *vm)
+ {
+     JNIEnv *env = NULL;
+     jclass klass;
++    int key_ready;
++    int mutex_ready;
++    int condition_ready;
+
+     java_vm = vm;
+     if (JNI_OK != (*vm)->GetEnv (vm, (void **)&env, JNI_VERSION_1_4)) {
+-        return 0;
++        java_vm = NULL;
++        return JNI_ERR;
+     }
+
++    key_ready = pthread_key_create (&current_jni_env, detach_current_thread);
++    if (key_ready != 0)
++        goto error;
++    mutex_ready = pthread_mutex_init (&mutex, NULL);
++    if (mutex_ready != 0)
++        goto error_key;
++    condition_ready = pthread_cond_init (&startup_condition, NULL);
++    if (condition_ready != 0)
++        goto error_mutex;
++
+     klass = (*env)->FindClass (env, STR (PKGNAME) "/" STR (CLSNAME));
+-    (*env)->RegisterNatives (env, klass, native_methods,
+-                             N_ELEMENTS (native_methods));
++    if (!klass)
++        goto error_condition;
++    if ((*env)->RegisterNatives (env, klass, native_methods,
++                                 N_ELEMENTS (native_methods)) != JNI_OK) {
++        (*env)->DeleteLocalRef (env, klass);
++        goto error_condition;
++    }
+     (*env)->DeleteLocalRef (env, klass);
+
+-    pthread_key_create (&current_jni_env, detach_current_thread);
+-    pthread_mutex_init (&mutex, NULL);
+-
+     return JNI_VERSION_1_4;
++
++error_condition:
++    pthread_cond_destroy (&startup_condition);
++error_mutex:
++    pthread_mutex_destroy (&mutex);
++error_key:
++    pthread_key_delete (current_jni_env);
++error:
++    java_vm = NULL;
++    return JNI_ERR;
+ }
+
++/* 释放工作线程启动参数；正常退出与初始化失败共用，保证配置副本不会泄漏。 */
++static void
++free_thread_data (void *data)
++{
++    ThreadData *tdata = data;
++
++    free (tdata->path);
++    free (tdata);
++}
++
++/* 在独立线程运行阻塞 HEV 主循环；退出时统一释放参数并发布确定状态。 */
+ static void *
+ thread_handler (void *data)
+ {
+     ThreadData *tdata = data;
++    int result;
+
+-    hev_socks5_tunnel_main (tdata->path, tdata->fd);
++    pthread_cleanup_push (free_thread_data, tdata);
++    result = hev_socks5_tunnel_main (tdata->path, tdata->fd);
++    pthread_cleanup_pop (1);
+
+-    free (tdata->path);
+-    free (tdata);
++    // 工作线程保持 joinable；只发布退出码，由 stop 或启动失败路径统一回收 pthread_t。
++    pthread_mutex_lock (&mutex);
++    worker_exit_status = result;
++    worker_running = 0;
++    pthread_mutex_unlock (&mutex);
+
+     return NULL;
+ }
+
+-static void
++/*
++ * 创建 HEV 工作线程并等待其完成配置、任务系统、lwIP 与 TUN 初始化。
++ * 成功返回 null；分配、建线程、十秒初始化超时或任一阶段失败均返回中文原因。
++ */
++static jstring
+ native_start_service (JNIEnv *env, jobject thiz, jstring config_path, jint fd)
+ {
+     const jbyte *bytes;
+     ThreadData *tdata;
++    struct timespec deadline;
++    int create_result;
++    int wait_result;
+
+     pthread_mutex_lock (&mutex);
+-    if (work_thread) {
++    if (work_thread_active) {
+         pthread_mutex_unlock (&mutex);
+-        return;
++        return new_error (env, "HEV 数据面已经启动");
++    }
++    if (!config_path) {
++        pthread_mutex_unlock (&mutex);
++        return new_error (env, "HEV 配置路径为空");
+     }
+
+-    tdata = malloc (sizeof (ThreadData));
++    tdata = calloc (1, sizeof (ThreadData));
++    if (!tdata) {
++        pthread_mutex_unlock (&mutex);
++        return new_error (env, "HEV 启动参数分配失败");
++    }
+     tdata->fd = fd;
+
+     bytes = (const jbyte *)(*env)->GetStringUTFChars (env, config_path, NULL);
++    if (!bytes) {
++        free (tdata);
++        pthread_mutex_unlock (&mutex);
++        return new_error (env, "HEV 配置路径读取失败");
++    }
+     tdata->path = strdup ((const char *)bytes);
+     (*env)->ReleaseStringUTFChars (env, config_path, (const char *)bytes);
++    if (!tdata->path) {
++        free (tdata);
++        pthread_mutex_unlock (&mutex);
++        return new_error (env, "HEV 配置路径复制失败");
++    }
+
+-    pthread_create (&work_thread, NULL, thread_handler, tdata);
++    startup_status = INT_MIN;
++    worker_running = 1;
++    worker_exit_status = INT_MIN;
++    hev_socks5_tunnel_set_startup_notifier (startup_notify);
++    create_result = pthread_create (&work_thread, NULL, thread_handler, tdata);
++    if (create_result != 0) {
++        worker_running = 0;
++        free (tdata->path);
++        free (tdata);
++        hev_socks5_tunnel_set_startup_notifier (NULL);
++        pthread_mutex_unlock (&mutex);
++        return new_error (env, "HEV 工作线程创建失败");
++    }
++    work_thread_active = 1;
++    if (clock_gettime (CLOCK_REALTIME, &deadline) != 0)
++        return abort_startup (env, "HEV 初始化时钟读取失败", 1);
++    deadline.tv_sec += 10;
++    wait_result = 0;
++    while (startup_status == INT_MIN && wait_result == 0)
++        wait_result = pthread_cond_timedwait (&startup_condition, &mutex,
++                                              &deadline);
++    if (wait_result == ETIMEDOUT) {
++        /*
++         * Android Bionic 不提供 pthread_cancel。超时后要求 HEV 事件循环退出，并在未持锁
++         * 状态等待线程收尾；初始化阶段每个阻塞点都受本地文件和 TUN 描述符边界约束。
++         */
++        return abort_startup (env, "HEV 初始化等待超时", 1);
++    }
++    if (wait_result != 0) {
++        // 任意条件变量错误都必须先要求事件循环退出，禁止对仍运行的线程直接 join。
++        return abort_startup (env, "HEV 初始化同步等待失败", 1);
++    }
++    if (startup_status < 0) {
++        const char *message = startup_error (startup_status);
++        // 阶段失败已使主循环自行退出；统一回收但不重复发送 quit。
++        return abort_startup (env, message, 0);
++    }
+     pthread_mutex_unlock (&mutex);
++    return NULL;
+ }
+
++/* 停止事件循环并等待工作线程释放全部 HEV/lwIP 资源；未启动时幂等返回。 */
+ static void
+ native_stop_service (JNIEnv *env, jobject thiz)
+ {
++    pthread_t thread;
++
+     pthread_mutex_lock (&mutex);
+-    if (!work_thread) {
++    if (!work_thread_active) {
+         pthread_mutex_unlock (&mutex);
+         return;
+     }
+
++    thread = work_thread;
++    pthread_mutex_unlock (&mutex);
+     hev_socks5_tunnel_quit ();
+-    pthread_join (work_thread, NULL);
++    pthread_join (thread, NULL);
++    pthread_mutex_lock (&mutex);
+     work_thread = 0;
++    work_thread_active = 0;
++    worker_running = 0;
++    worker_exit_status = INT_MIN;
++    hev_socks5_tunnel_set_startup_notifier (NULL);
+     pthread_mutex_unlock (&mutex);
+ }
+
+-static jlongArray
+-native_get_stats (JNIEnv *env, jobject thiz)
++/*
++ * 返回工作线程的确定运行状态：null 表示已启动且尚未退出，中文字符串表示未启动或异常结束。
++ * 调用方周期查询即可把 HEV 数据面退出传播到整个代理生命周期，而不是继续展示伪运行状态。
++ */
++static jstring
++native_runtime_error (JNIEnv *env, jobject thiz)
+ {
+-    size_t tx_packets, rx_packets, tx_bytes, rx_bytes;
+-    jlongArray res;
+-    jlong array[4];
+-
+-    hev_socks5_tunnel_stats (&tx_packets, &tx_bytes, &rx_packets, &rx_bytes);
+-    array[0] = tx_packets;
+-    array[1] = tx_bytes;
+-    array[2] = rx_packets;
+-    array[3] = rx_bytes;
++    int active;
++    int running;
++    int exit_status;
+
+-    res = (*env)->NewLongArray (env, 4);
+-    (*env)->SetLongArrayRegion (env, res, 0, 4, array);
++    pthread_mutex_lock (&mutex);
++    active = work_thread_active;
++    running = worker_running;
++    exit_status = worker_exit_status;
++    pthread_mutex_unlock (&mutex);
+
+-    return res;
++    if (!active)
++        return new_error (env, "HEV 数据面未启动");
++    if (running && exit_status == INT_MIN)
++        return NULL;
++    if (exit_status < 0)
++        return new_error (env, startup_error (exit_status));
++    return new_error (env, "HEV 工作线程意外退出");
+ }
+
+ #endif /* ANDROID */
+diff --git a/src/hev-jni.h b/src/hev-jni.h
+index 89090a2..fed9338 100644
+--- a/src/hev-jni.h
++++ b/src/hev-jni.h
+@@ -10,4 +10,24 @@
+ #ifndef __HEV_JNI_H__
+ #define __HEV_JNI_H__
+
++#ifdef ANDROID
++
++#include <jni.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/*
++ * 把 HEV 的原生方法注册并入宿主 SO 的唯一 JNI_OnLoad。
++ * 该函数仅在 VM 加载 libroutesocks.so 时调用一次；类查找、方法注册或同步原语初始化失败返回 JNI_ERR。
++ */
++jint hev_jni_initialize (JavaVM *vm);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
++
+ #endif /* __HEV_JNI_H__ */
+diff --git a/src/hev-main.c b/src/hev-main.c
+index 143c22c..ba0f8e7 100644
+--- a/src/hev-main.c
++++ b/src/hev-main.c
+@@ -27,6 +27,26 @@
+
+ #define WEAK __attribute__ ((weak))
+
++static HevStartupNotifier startup_notifier;
++
++/*
++ * 登记一次启动过程的阶段通知器。Android 入口串行化 start/stop，
++ * 因此这里不额外加锁；调用者须保证运行期间不替换回调。
++ */
++void
++hev_socks5_tunnel_set_startup_notifier (HevStartupNotifier notifier)
++{
++    startup_notifier = notifier;
++}
++
++/* 通知 Android 初始化结果；未登记时保持上游命令行接口原行为。 */
++static void
++notify_startup (int status)
++{
++    if (startup_notifier)
++        startup_notifier (status);
++}
++
+ static void
+ show_help (const char *self_path)
+ {
+@@ -48,55 +68,82 @@ hev_socks5_tunnel_main_inner (int tun_fd)
+     const char *log_file;
+     int log_level;
+     int nofile;
+-    int res;
++    int result = -2;
++    int logger_ready = 0;
++    int socks_logger_ready = 0;
++    int task_system_ready = 0;
++    int tunnel_ready = 0;
+
+     log_file = hev_config_get_misc_log_file ();
+     log_level = hev_config_get_misc_log_level ();
+
+-    res = hev_logger_init (log_level, log_file);
+-    if (res < 0)
+-        return -2;
++    if (hev_logger_init (log_level, log_file) < 0) {
++        notify_startup (-2);
++        goto cleanup;
++    }
++    logger_ready = 1;
+
+-    res = hev_socks5_logger_init (log_level, log_file);
+-    if (res < 0)
+-        return -3;
++    if (hev_socks5_logger_init (log_level, log_file) < 0) {
++        notify_startup (-3);
++        result = -3;
++        goto cleanup;
++    }
++    socks_logger_ready = 1;
+
+     nofile = hev_config_get_misc_limit_nofile ();
+-    res = set_limit_nofile (nofile);
+-    if (res < 0)
++    if (set_limit_nofile (nofile) < 0)
+         LOG_W ("set limit nofile");
+
+     pid_file = hev_config_get_misc_pid_file ();
+     if (pid_file)
+         run_as_daemon (pid_file);
+
+-    res = hev_task_system_init ();
+-    if (res < 0)
+-        return -4;
++    if (hev_task_system_init () < 0) {
++        notify_startup (-4);
++        result = -4;
++        goto cleanup;
++    }
++    task_system_ready = 1;
+
+     lwip_init ();
+
+-    res = hev_socks5_tunnel_init (tun_fd);
+-    if (res < 0)
+-        return -5;
++    if (hev_socks5_tunnel_init (tun_fd) < 0) {
++        notify_startup (-5);
++        result = -5;
++        goto cleanup;
++    }
++    tunnel_ready = 1;
+
++    notify_startup (0);
+     hev_socks5_tunnel_run ();
+-
+-    hev_socks5_tunnel_fini ();
+-    hev_socks5_logger_fini ();
+-    hev_logger_fini ();
++    result = 0;
++
++cleanup:
++    /*
++     * Android 会在同一进程中重试或热切换。任何初始化阶段失败都必须按成功阶段逆序
++     * 释放，否则首次失败留下的全局任务/日志状态会污染下一次启动。
++     */
++    if (tunnel_ready)
++        hev_socks5_tunnel_fini ();
++    if (task_system_ready)
++        hev_task_system_fini ();
++    if (socks_logger_ready)
++        hev_socks5_logger_fini ();
++    if (logger_ready)
++        hev_logger_fini ();
+     hev_config_fini ();
+-    hev_task_system_fini ();
+
+-    return 0;
++    return result;
+ }
+
+ int
+ hev_socks5_tunnel_main_from_file (const char *config_path, int tun_fd)
+ {
+     int res = hev_config_init_from_file (config_path);
+-    if (res < 0)
++    if (res < 0) {
++        notify_startup (-1);
+         return -1;
++    }
+
+     return hev_socks5_tunnel_main_inner (tun_fd);
+ }
+@@ -106,8 +153,10 @@ hev_socks5_tunnel_main_from_str (const unsigned char *config_str,
+                                  unsigned int config_len, int tun_fd)
+ {
+     int res = hev_config_init_from_str (config_str, config_len);
+-    if (res < 0)
++    if (res < 0) {
++        notify_startup (-1);
+         return -1;
++    }
+
+     return hev_socks5_tunnel_main_inner (tun_fd);
+ }
+diff --git a/src/hev-main.h b/src/hev-main.h
+index 49896b9..79da3eb 100644
+--- a/src/hev-main.h
++++ b/src/hev-main.h
+@@ -16,6 +16,15 @@
+ extern "C" {
+ #endif
+
++/**
++ * HEV 初始化阶段通知器；status=0 表示已进入事件循环前的稳定点，负值对应初始化阶段。
++ * Android JNI 使用它形成确定启动握手，普通命令行调用无需登记。
++ */
++typedef void (*HevStartupNotifier) (int status);
++
++/** 登记当前启动调用的阶段通知器；传 NULL 恢复普通阻塞运行语义。 */
++void hev_socks5_tunnel_set_startup_notifier (HevStartupNotifier notifier);
++
+ /**
+  * hev_socks5_tunnel_main:
+  * @config_path: config file path
+diff --git a/src/hev-socks5-session-tcp.c b/src/hev-socks5-session-tcp.c
+index 4d9dd6a..615e48d 100644
+--- a/src/hev-socks5-session-tcp.c
++++ b/src/hev-socks5-session-tcp.c
+@@ -25,6 +25,7 @@
+ #include "hev-config-const.h"
+
+ #include "hev-socks5-session-tcp.h"
++#include "hev-flow-classifier.h"
+
+ #define task_io_yielder hev_socks5_task_io_yielder
+
+@@ -258,6 +259,14 @@ hev_socks5_session_tcp_get_node (HevSocks5Session *base)
+     return &self->data.node;
+ }
+
++/* 返回构造时确定的应用作用域；负值要求会话直接丢弃。 */
++static int
++hev_socks5_session_tcp_get_flow_context (HevSocks5Session *base)
++{
++    HevSocks5SessionTCP *self = HEV_SOCKS5_SESSION_TCP (base);
++    return self->data.flow_context;
++}
++
+ int
+ hev_socks5_session_tcp_construct (HevSocks5SessionTCP *self,
+                                   struct tcp_pcb *pcb, HevTaskMutex *mutex)
+@@ -287,6 +296,9 @@ hev_socks5_session_tcp_construct (HevSocks5SessionTCP *self,
+     self->pcb = pcb;
+     self->mutex = mutex;
+     self->data.self = self;
++    self->data.flow_context =
++        hev_flow_classify (6, &pcb->remote_ip, pcb->remote_port,
++                           &pcb->local_ip, pcb->local_port);
+
+     return 0;
+ }
+@@ -351,6 +363,7 @@ hev_socks5_session_tcp_class (void)
+         siptr->get_task = hev_socks5_session_tcp_get_task;
+         siptr->set_task = hev_socks5_session_tcp_set_task;
+         siptr->get_node = hev_socks5_session_tcp_get_node;
++        siptr->get_flow_context = hev_socks5_session_tcp_get_flow_context;
+     }
+
+     return okptr;
+diff --git a/src/hev-socks5-session-udp.c b/src/hev-socks5-session-udp.c
+index 730fbfd..3410904 100644
+--- a/src/hev-socks5-session-udp.c
++++ b/src/hev-socks5-session-udp.c
+@@ -27,6 +27,7 @@
+ #include "hev-config-const.h"
+
+ #include "hev-socks5-session-udp.h"
++#include "hev-flow-classifier.h"
+
+ typedef struct _HevSocks5UDPFrame HevSocks5UDPFrame;
+
+@@ -336,6 +337,14 @@ hev_socks5_session_udp_get_node (HevSocks5Session *base)
+     return &self->data.node;
+ }
+
++/* 返回首个数据报建立会话时确定的应用作用域。 */
++static int
++hev_socks5_session_udp_get_flow_context (HevSocks5Session *base)
++{
++    HevSocks5SessionUDP *self = HEV_SOCKS5_SESSION_UDP (base);
++    return self->data.flow_context;
++}
++
+ int
+ hev_socks5_session_udp_construct (HevSocks5SessionUDP *self,
+                                   struct udp_pcb *pcb, HevTaskMutex *mutex)
+@@ -344,6 +353,10 @@ hev_socks5_session_udp_construct (HevSocks5SessionUDP *self,
+     int type;
+     int res;
+
++    self->data.flow_context =
++        hev_flow_classify (17, &pcb->remote_ip, pcb->remote_port,
++                           &pcb->local_ip, pcb->local_port);
++
+     if (srv->udp_in_udp)
+         type = HEV_SOCKS5_TYPE_UDP_IN_UDP;
+     else
+@@ -432,6 +445,7 @@ hev_socks5_session_udp_class (void)
+         siptr->get_task = hev_socks5_session_udp_get_task;
+         siptr->set_task = hev_socks5_session_udp_set_task;
+         siptr->get_node = hev_socks5_session_udp_get_node;
++        siptr->get_flow_context = hev_socks5_session_udp_get_flow_context;
+     }
+
+     return okptr;
+diff --git a/src/hev-socks5-session.c b/src/hev-socks5-session.c
+index 242e285..2bda6df 100644
+--- a/src/hev-socks5-session.c
++++ b/src/hev-socks5-session.c
+@@ -14,6 +14,7 @@
+ #include "hev-socks5-client.h"
+
+ #include "hev-socks5-session.h"
++#include "hev-flow-classifier.h"
+
+ void
+ hev_socks5_session_run (HevSocks5Session *self)
+@@ -22,18 +23,24 @@ hev_socks5_session_run (HevSocks5Session *self)
+     HevConfigServer *srv;
+     int read_write_timeout;
+     int connect_timeout;
++    int flow_context;
+     int res;
+
+     LOG_D ("%p socks5 session run", self);
+
+     srv = hev_config_get_socks5_server ();
++    iface = HEV_OBJECT_GET_IFACE (self, HEV_SOCKS5_SESSION_TYPE);
++    flow_context = iface->get_flow_context (self);
++    if (flow_context < 0)
++        return;
+     connect_timeout = hev_config_get_misc_connect_timeout ();
+     read_write_timeout = hev_config_get_misc_read_write_timeout ();
+
+     hev_socks5_set_timeout (HEV_SOCKS5 (self), connect_timeout);
+
+-    res = hev_socks5_client_connect (HEV_SOCKS5_CLIENT (self), srv->addr,
+-                                     srv->port);
++    res = hev_socks5_client_connect (
++        HEV_SOCKS5_CLIENT (self), srv->addr,
++        flow_context == 1 ? hev_flow_selected_port () : srv->port);
+     if (res < 0) {
+         LOG_E ("%p socks5 session connect", self);
+         return;
+@@ -44,7 +51,8 @@ hev_socks5_session_run (HevSocks5Session *self)
+     if (srv->user && srv->pass) {
+         hev_socks5_client_set_auth (HEV_SOCKS5_CLIENT (self), srv->user,
+                                     srv->pass);
+-        LOG_D ("%p socks5 client auth %s:%s", self, srv->user, srv->pass);
++        /* 内部凭据每次启动随机生成，任何日志级别都只记录认证阶段，绝不格式化秘密值。 */
++        LOG_D ("%p socks5 client auth configured", self);
+     }
+
+     res = hev_socks5_client_handshake (HEV_SOCKS5_CLIENT (self), srv->pipeline);
+@@ -53,7 +61,6 @@ hev_socks5_session_run (HevSocks5Session *self)
+         return;
+     }
+
+-    iface = HEV_OBJECT_GET_IFACE (self, HEV_SOCKS5_SESSION_TYPE);
+     iface->splicer (self);
+ }
+
+diff --git a/src/hev-socks5-session.h b/src/hev-socks5-session.h
+index 1475892..703d55d 100644
+--- a/src/hev-socks5-session.h
++++ b/src/hev-socks5-session.h
+@@ -27,6 +27,7 @@ struct _HevSocks5SessionData
+     HevListNode node;
+     HevTask *task;
+     HevSocks5Session *self;
++    int flow_context;
+ };
+
+ struct _HevSocks5SessionIface
+@@ -35,6 +36,7 @@ struct _HevSocks5SessionIface
+     HevTask *(*get_task) (HevSocks5Session *self);
+     void (*set_task) (HevSocks5Session *self, HevTask *task);
+     HevListNode *(*get_node) (HevSocks5Session *self);
++    int (*get_flow_context) (HevSocks5Session *self);
+ };
+
+ void *hev_socks5_session_iface (void);
+diff --git a/src/core/src/hev-socks5-server.c b/src/core/src/hev-socks5-server.c
+index de4b999..ef205c9 100644
+--- a/src/core/src/hev-socks5-server.c
++++ b/src/core/src/hev-socks5-server.c
+@@ -179,13 +179,15 @@ hev_socks5_server_read_auth_user (HevSocks5Server *self)
+
+     user = hev_socks5_authenticator_get (self->auth, (char *)name, nlen);
+     if (!user) {
+-        LOG_E ("%p socks5 server auth user: %s pass: %s", self, name, pass);
++        /* 失败日志不得包含用户名或密码，避免临时内部凭据进入持久日志。 */
++        LOG_E ("%p socks5 server auth user not found", self);
+         return -1;
+     }
+
+     res = hev_socks5_user_check (user, (char *)pass, plen);
+     if (res < 0) {
+-        LOG_E ("%p socks5 server auth user: %s pass: %s", self, name, pass);
++        /* 认证结果足以诊断协议阶段，秘密字节不能作为错误上下文输出。 */
++        LOG_E ("%p socks5 server auth rejected", self);
+         return -1;
+     }
+
+diff --git a/third-part/lwip/src/core/udp.c b/third-part/lwip/src/core/udp.c
+index 1ee04b0..cd14864 100644
+--- a/third-part/lwip/src/core/udp.c
++++ b/third-part/lwip/src/core/udp.c
+@@ -459,6 +459,12 @@ again:
+           IP_ADDR_PCB_VERSION_MATCH(pcb, ip_current_dest_addr())) {
+         struct udp_pcb *npcb = udp_new_ip_type(pcb->local_ip.type);
+         if (npcb != NULL) {
++          /*
++           * 会话分类在回调中立即读取完整五元组。克隆 PCB 必须先保存本次报文的
++           * 本地目标，否则 mixed VPN 的 UID 查询会收到 0.0.0.0:0 并拒绝全部 UDP。
++           */
++          ip_addr_set_ipaddr(&npcb->local_ip, ip_current_dest_addr());
++          npcb->local_port = dest;
+           ip_addr_set_ipaddr(&npcb->remote_ip, ip_current_src_addr());
+           npcb->remote_port = src;
+           npcb->flags |= UDP_FLAGS_CONNECTED;

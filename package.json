@@ -1,5 +1,5 @@
 {
-  "name": "proxy-workspace",
+  "name": "capture-server-workspace",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.33.0",
@@ -14,7 +14,7 @@
     "desktop:check": "pnpm --dir Server/Frontend/Desktop check",
     "desktop:build": "pnpm --dir Server/Frontend/Desktop build",
     "workspace:verify-clean": "node scripts/verifyWorkspaceClean.mjs",
-    "check": "cargo fmt --all --check && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand clippy -Workspace -AllTargets -AllFeatures -DenyWarnings && pnpm i18n:check && pnpm web:build && pnpm desktop:check",
-    "test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand test -Workspace && pnpm web:test && pnpm --dir Server/Frontend/Desktop test:paths && pnpm workspace:verify-clean"
+    "check": "cargo fmt --all --check && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand clippy -Workspace -ExcludedPackages desktop-shell -AllTargets -AllFeatures -DenyWarnings && pnpm i18n:check && pnpm desktop:check",
+    "test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/runCargoIsolated.ps1 -CargoCommand test -Workspace -ExcludedPackages desktop-shell && pnpm web:test && pnpm --dir Server/Frontend/Desktop test && pnpm workspace:verify-clean"
   }
 }

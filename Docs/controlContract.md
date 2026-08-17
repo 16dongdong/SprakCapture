@@ -1,4 +1,4 @@
-﻿# 前后端控制契约
+# 前后端控制契约
 
 ## 插件控制
 
@@ -17,6 +17,86 @@
 `PluginSnapshot` 使用 camelCase 字段：`id`、`name`、`version`、`apiVersion`、`runtime`、`hooks`、`enabled`、`state`、`activeConnections` 和可选 `errorCode`。`PluginDetails` 另含 `configSchema`、脱敏后的 `configuration` 与 `configuredSecretFields`。`state` 为 `disabled`、`enabled`、`failed` 或 `incompatible`。
 
 完整阶段、动作、能力和模块 API 见 [pluginHookApi.md](pluginHookApi.md)。当前 legacy Native 兼容范围见 [pluginSystemAudit.md](pluginSystemAudit.md)。
+
+## Android 客户端生成
+
+客户端记录查询和 APK 下载严格分离。节点来自当前融合 SOCKS5 监听配置；公开 `/client` 页面提交
+SOCKS5 账号和密码后，服务端先向账号数据库执行无租约认证，再通过独立打包器同步生成并流式返回
+本次随机 APK。请求可选提交 `applicationId`、`applicationName` 和不超过 1 MiB 的 PNG/JPEG/WebP
+`iconBase64`；空值使用随机 3–6 字母身份和模板图标。APK 仅在认证密文中携带节点、SOCKS5 凭据和
+规则集地址，不包含管理员身份或自动化 API Key，也不在 UI、DEX、资源字符串或日志中显示连接资料。
+规则地址固定使用 `client-rules.internal.invalid`；SOCKS5 数据面把该保留域名直接映射到本机账号服务，
+因此不依赖部署网络支持公网 NAT 回流，也不会让客户端绕过已认证代理直连管理端口。
+
+| 方法 | 路径 | 成功响应 | 错误 |
+|---|---|---|---|
+| `GET` | `/api/v1/clientPackages` | `ClientPackageSnapshot` | 无 |
+| `POST` | `/api/v1/clientPackages/download` | 已签名 APK | `error.clientPackageAuthenticationFailed`、`error.clientPackageBusy`、`error.clientNodeUnavailable`、`error.clientPackageServiceUnavailable`、`error.clientPackageOperationFailed` |
+| `GET` | `/client` | 公开下载页面 | 无 |
+| `GET` | `/api/v1/client/routing.txt` | 当前唯一启用规则集正文 | 未认证、无启用规则集 |
+| `GET` | `/api/v1/client/ca.cer` | 当前公开根证书 DER | SOCKS5 账号无效、禁用或过期 |
+
+`POST /api/v1/clientPackages/download` 的 JSON 正文为
+`{ "username": string, "password": string, "applicationId"?: string, "applicationName"?: string, "iconBase64"?: string }`。
+账号和密码均须非空；数据库中未设置固定密码的账号也必须为本次 APK 提交任意非空密码。
+自定义包名只接受规范小写 Android applicationId，自定义软件名为 1–32 个无首尾空白的非控制字符；
+空字符串按未填写处理，非空值不得静默裁剪。
+账号验证不创建 SOCKS5 连接租约；响应结束或断流后不保留可再次下载的带凭据产物。
+`ClientPackageSnapshot` 最多包含最近 10 条生成记录；每条记录公开唯一包名、随机软件名、节点、
+字节数和 SHA-256，不公开账号、密码、规则 URL、文件系统路径、签名材料或下载 URL。构建状态为
+`preparing`、`building`、`verifying`、`ready` 或 `failed`，失败原因只保留有界且脱敏的诊断。
+
+写入 APK 的节点必须是设备可达的外部地址。固定部署可通过 `CAPTURE_CLIENT_PUBLIC_HOST` 提供公网 IP；
+显式公网监听直接复用该地址，通配或回环监听则通过 HTTPS 查询当前公网 IPv4。私网、回环、链路本地、
+文档和保留地址一律拒绝，公网地址解析失败时终止生成，不把局域网接口伪装成公网节点。仅调试构建提供
+`CAPTURE_CLIENT_TEST_HOST` 供隔离局域网端到端验收，发布构建不接受该覆盖值。
+
+预编译模板的 `assets/bootstrap/profile.bin` 必须为空，双 ABI `libroutesocks.so` 各含唯一 32 字节零密钥槽。
+打包器为每个 APK 生成随机 XChaCha20-Poly1305 密钥和 nonce，把节点、凭据和规则 URL 写为认证密文，
+密钥仅补入 Native 固定槽。HEV 内部随机凭据通过匿名管道传递，不落盘。签名前后必须校验双 ABI 单 SO，
+并扫描完整 APK 与每个解压条目，拒绝任何连接资料明文或 Base64 残留。
+
+规则集由账号管理页面维护，创建、编辑、删除、批量删除和启用操作使用 `/api/v1/ruleSets` 路由族。
+服务端事务保证最多一个规则集启用。客户端以 SOCKS5 Basic 凭据请求
+`GET /api/v1/client/routing.txt`；响应包含 `ETag`、`X-Rule-Set-Id` 与
+`X-Rule-Set-Revision`，匹配 `If-None-Match` 时返回 `304`。
+
+客户端证书信任不复用无认证的控制导出入口。Android 在代理通道启动后使用相同 SOCKS5 账号通过
+HTTP Basic 请求 `GET /api/v1/client/ca.cer`；账号服务只在凭据有效时从回环控制 API 读取当前 DER，
+并返回 `Cache-Control: private, no-store`。证书私钥始终保留在控制服务证书目录。
+
+`routing.txt` 必须同时包含且不得重复 `[DNS]`、`[RoutingRule]`、`[GRoutingRule]` 和
+`[proxy_app]` 四个段。`[DNS]` 段的线上格式为：
+
+```text
+[DNS]
+PRIMARY,223.5.5.5
+SECONDARY,1.1.1.1
+
+[RoutingRule]
+
+[GRoutingRule]
+FINAL,PROXY
+
+[proxy_app]
+```
+
+`PRIMARY` 必需且只允许一条，`SECONDARY` 可选且最多一条；值必须是
+IPv4 或 IPv6 字面量，不接受主机名、重复键或未知键。客户端对传统 TCP/UDP 53 查询和
+Native 内部域名解析统一使用指定 DNS 直连，不通过 SOCKS5 节点，也不隐式回退到系统 DNS；
+DoT 853 明确拒绝，DoH 按普通 HTTPS 域名规则处理。新建规则
+默认使用 `223.5.5.5`、备用 `1.1.1.1` 和 `FINAL,PROXY`；VPN 与 Root 数据面执行同一份
+路由规则和 DNS 策略。
+
+规则允许混合应用范围：`[RoutingRule]` 只作用于 `[proxy_app]` 列出的应用，
+`[GRoutingRule]` 只作用于其他应用。例如可让 APP A 对 `abc.com` 使用代理，同时让
+其他应用仅对 `aaa.com` 使用代理。客户端必须在 TUN/透明入口保留应用身份，禁止把
+普通规则误用于其他应用。
+
+账号数据库 v3 迁移会在单一 SQLite 事务内为缺少 `[DNS]` 的 v2 规则前置上述
+默认 DNS，并把旧 `[proxy app]` 段改为 `[proxy_app]`；改写会递增 `revision` 和
+`updatedAt` 使旧 ETag 失效。已经使用当前格式的正文不改写。迁移后每条规则都使用
+与管理端保存相同的 validator 复验，任一旧正文仍无效时整个迁移回滚并阻止服务启动。
 
 ## 1. 边界与版本
 
@@ -56,6 +136,7 @@ HTTP、SSE 与 WebSocket 升级共用该校验。未携带 Origin 的本机 CLI/
 | `GET` | `/api/v1/health` | `HealthResponse` | 探测本地控制服务存活，不修改 revision |
 | `GET` | `/api/v1/version` | `VersionResponse` | 返回后端协议版本 |
 | `GET` | `/api/v1/snapshot` | `ControlSnapshot` | 获取完整权威快照 |
+| `GET` / `PUT` | `/api/v1/ui/context` | `UiContextSnapshot` | 读取或续期当前页面、页签、焦点和稳定资源选择 |
 | `POST` | `/api/v1/service/start` | `ControlSnapshot` | 启动 HTTP/SOCKS5 融合监听及已启用的进程捕获 |
 | `POST` | `/api/v1/service/stop` | `ControlSnapshot` | 停止进程捕获并排空融合数据面 |
 | `PUT` | `/api/v1/configuration` | `ControlSnapshot` | 运行中先强制断开全部代理连接，再以新配置重启数据面；停止态只替换配置 |

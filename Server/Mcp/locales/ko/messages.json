@@ -1,6 +1,7 @@
 {
   "mcp.server.instructions": "UI와 동일한 기능으로 로컬 Sprak Capture 제어 API를 조작합니다.",
   "mcp.tool.serviceGetSnapshot.description": "Sprak Capture 서비스의 권위 있는 스냅샷을 가져옵니다.",
+  "mcp.tool.uiGetContext.description": "현재 표시 중인 Sprak Capture 화면과 보고 있는 데이터 선택을 가져옵니다.",
   "mcp.tool.serviceStart.description": "Sprak Capture 데이터 서비스를 시작합니다.",
   "mcp.tool.serviceStop.description": "Sprak Capture 데이터 서비스를 중지합니다.",
   "mcp.tool.configGet.description": "Sprak Capture 서비스의 공개 구성을 가져옵니다.",
@@ -67,5 +68,6 @@
   "mcp.tool.transactionRepeatEdited.description": "수정한 요청 필드로 기록된 HTTP 트랜잭션을 다시 실행합니다.",
   "mcp.tool.transactionRepeatAdvanced.description": "명시적 확인 후 제한된 고급 반복 작업을 시작합니다.",
   "mcp.tool.pluginList.description": "검색된 플러그인을 나열합니다.",
-  "mcp.tool.pluginSetEnabled.description": "플러그인 하나를 활성화하거나 비활성화합니다."
+  "mcp.tool.pluginSetEnabled.description": "플러그인 하나를 활성화하거나 비활성화합니다.",
+  "mcp.tool.clientPackageGet.description": "Get the Android client package build state and recent signed artifacts."
 }

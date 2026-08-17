@@ -129,6 +129,7 @@ export function createServiceSnapshot(
       }),
     ],
     configuration: {
+      startServiceOnLaunch: false,
       listenHost: "127.0.0.1",
       listenPort: 1080,
       authenticationMode: "none",
@@ -166,6 +167,16 @@ export function createServiceSnapshot(
         enabled: false,
         processIds: [],
         proxyPort: 1080,
+      },
+      multiAccount: {
+        enabled: false,
+        remoteHost: "0.0.0.0",
+        remotePort: 19_090,
+        state: "stopped",
+        apiKeyPrefix: "",
+        apiKeyCreatedAt: null,
+        summary: null,
+        error: null,
       },
     },
     processCapture: {
@@ -215,7 +226,6 @@ export function createServiceSnapshot(
     },
     tools: {
       pipelineOrder: [
-        "recordingRules",
         "dnsSpoofing",
         "blockList",
         "noCaching",
@@ -229,11 +239,6 @@ export function createServiceSnapshot(
         "autoSave",
         "packetFilters",
       ],
-      recordingRules: {
-        enabled: false,
-        defaultAction: "record",
-        ruleSets: [],
-      },
       packetFilters: { enabled: false, rules: [] },
       blockList: {
         mode: "off",
@@ -432,11 +437,40 @@ export function createControlClientStub(
     validatedAtMilliseconds: snapshot.revision,
   };
   return {
+    updateUiContext: async () => ({ primary: null, contexts: [] }),
     getSnapshot: async () => snapshot,
     startService: async () => snapshot,
     stopService: async () => snapshot,
     updateConfiguration: async () => snapshot,
     updateMcpConfiguration: async () => snapshot,
+    getManagementIdentity: async () => ({
+      username: "Admin",
+      credentialRevision: 1,
+      apiKeyPrefix: "sak_v1_test_••••",
+      apiKeyCreatedAt: baseTimestamp,
+    }),
+    getMultiAccountState: async () => snapshot.configuration.multiAccount,
+    updateManagementIdentity: async (username) => ({
+      identity: {
+        username,
+        credentialRevision: 2,
+        apiKeyPrefix: "sak_v1_new_••••",
+        apiKeyCreatedAt: baseTimestamp + 1,
+      },
+      apiKey: "sak_v1_new_secret",
+    }),
+    getManagementApiKey: async () => ({
+      identity: {
+        username: "Admin",
+        credentialRevision: 1,
+        apiKeyPrefix: "sak_v1_test_••••",
+        apiKeyCreatedAt: baseTimestamp,
+      },
+      apiKey: "sak_v1_test_secret",
+    }),
+    createManagementSession: async () => ({
+      path: "/account-management/api/v1/auth/local?ticket=test-ticket",
+    }),
     getProcesses: async () => ({
       enabled: false,
       selectedPaths: [],
@@ -601,7 +635,6 @@ export function createControlClientStub(
     validateResponse: async () => validationReport,
     getValidationReports: async () => [],
     updateBlockList: async () => snapshot.tools,
-    updateRecordingRules: async () => snapshot.tools,
     updatePacketFilters: async () => snapshot.tools,
     updateNoCaching: async () => snapshot.tools,
     updateBlockCookies: async () => snapshot.tools,

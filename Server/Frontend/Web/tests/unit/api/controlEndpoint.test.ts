@@ -4,10 +4,23 @@ import {
   defaultControlBaseUrl,
   deriveEventStreamUrl,
   deriveServerSentEventsUrl,
+  isTauriRuntimeOrigin,
   resolveControlBaseUrl,
 } from "@/api/controlEndpoint";
 
 describe("控制服务端点派生", () => {
+  it("不把 Tauri 静态资源来源误判为远程 Web 控制端", () => {
+    expect(isTauriRuntimeOrigin({ hostname: "tauri.localhost" } as Location)).toBe(
+      true,
+    );
+    expect(
+      isTauriRuntimeOrigin({ hostname: "window-123.tauri.localhost" } as Location),
+    ).toBe(true);
+    expect(isTauriRuntimeOrigin({ hostname: "capture.example.com" } as Location)).toBe(
+      false,
+    );
+  });
+
   it("REST 与事件流默认使用同一个本机控制服务", () => {
     expect(resolveControlBaseUrl()).toBe(defaultControlBaseUrl);
     expect(deriveEventStreamUrl()).toBe(

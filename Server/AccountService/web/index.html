@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <base href="/account-management/">
+  <title>SOCKS5 管理</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section id="loginView" class="panel loginCard">
+    <h1>SOCKS5 管理</h1>
+    <p class="muted">使用独立账号服务的管理身份登录。</p>
+    <form id="loginForm">
+      <label>管理员账号<input id="loginUsername" autocomplete="username" value="Admin" required maxlength="255"></label>
+      <label>管理员密码<input id="loginPassword" autocomplete="current-password" type="password" required maxlength="255"></label>
+      <p id="loginError" class="error" role="alert"></p>
+      <button type="submit">登录</button>
+    </form>
+  </section>
+
+  <div id="workspace" class="appLayout" hidden>
+    <aside class="sidebar">
+      <nav class="sideNav" aria-label="账号管理">
+        <button type="button" data-tab="overview" aria-selected="true">概览</button>
+        <button type="button" data-tab="accounts" aria-selected="false">账号管理</button>
+        <button type="button" data-tab="ruleSets" aria-selected="false">规则集</button>
+        <button type="button" data-tab="packaging" aria-selected="false">客户端打包</button>
+      </nav>
+    </aside>
+    <main class="appShell">
+      <div class="appContent">
+      <p id="pageNotice" class="notice" aria-live="polite"></p>
+      <p id="pageError" class="error" role="alert"></p>
+
+      <section id="overviewSection" data-section="overview">
+        <h1 class="pageHeading">概览</h1>
+        <div id="summaryCards" class="cards"></div>
+        <div class="panel">
+          <div class="toolbar"><strong id="connectionTitle">当前连接</strong><button id="refreshConnections" class="secondary" type="button">刷新</button></div>
+          <div class="tableWrap"><table><thead><tr><th>账号</th><th>来源 IP</th><th>连接 ID</th><th>建立时间</th><th>最近心跳</th><th>实时上行</th><th>实时下行</th><th>累计流量</th><th>状态</th></tr></thead><tbody id="connectionRows"></tbody></table></div>
+          <div id="connectionEmpty" class="empty" hidden>当前没有连接。</div>
+        </div>
+      </section>
+
+      <section id="accountsSection" data-section="accounts" hidden>
+        <h1 class="pageHeading">账号管理</h1>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="toolbarGroup">
+              <input id="accountSearch" type="search" placeholder="搜索账号或备注" aria-label="搜索账号">
+              <select id="accountStatusFilter" aria-label="筛选账号状态"><option value="all">全部状态</option><option value="available">可用</option><option value="disabled">已禁用</option><option value="expired">已过期</option></select>
+              <select id="accountExpiryFilter" aria-label="筛选到期类型"><option value="all">全部到期类型</option><option value="never">永不过期</option><option value="scheduled">已设到期时间</option><option value="expired">已经到期</option></select>
+              <select id="accountSort" aria-label="账号排序"><option value="createdDesc">最新创建</option><option value="createdAsc">最早创建</option><option value="usernameAsc">账号正序</option><option value="usernameDesc">账号倒序</option><option value="expiryAsc">到期时间最近</option><option value="trafficDesc">累计流量最多</option><option value="connectionsDesc">当前连接最多</option></select>
+            </div>
+            <div class="toolbarGroup"><button id="refreshAccounts" class="secondary" type="button">刷新</button><button id="createAccountButton" type="button">新建账号</button></div>
+          </div>
+          <div id="batchActions" class="batchActions" hidden><strong id="selectionCount">已选择 0 个账号</strong><button id="batchEditButton" type="button">批量编辑</button><button id="batchDeleteButton" class="danger" type="button">删除所选</button></div>
+          <div class="tableWrap"><table><thead><tr><th class="selectionCell"><input id="selectVisibleAccounts" type="checkbox" aria-label="选择当前列表的全部账号"></th><th>账号</th><th>状态</th><th>密码</th><th>在线 IP</th><th>连接数</th><th>共享带宽</th><th>到期时间</th><th>操作</th></tr></thead><tbody id="accountRows"></tbody></table></div>
+          <div id="accountEmpty" class="empty" hidden>没有符合条件的账号。</div>
+        </div>
+      </section>
+
+      <section id="ruleSetsSection" data-section="ruleSets" hidden>
+        <h1 class="pageHeading">规则集</h1>
+        <div class="panel">
+          <div class="toolbar">
+            <div><strong>云端路由规则</strong><p class="muted">客户端通过 SOCKS5 节点下载当前唯一启用的 routing.txt。</p></div>
+            <div class="toolbarGroup"><button id="refreshRuleSets" class="secondary" type="button">刷新</button><button id="createRuleSetButton" type="button">新建规则集</button></div>
+          </div>
+          <div id="ruleSetBatchActions" class="batchActions" hidden><strong id="ruleSetSelectionCount">已选择 0 个规则集</strong><button id="deleteSelectedRuleSets" class="danger" type="button">删除所选</button></div>
+          <div class="tableWrap"><table><thead><tr><th class="selectionCell"><input id="selectAllRuleSets" type="checkbox" aria-label="选择全部规则集"></th><th>名称</th><th>状态</th><th>修订</th><th>更新时间</th><th>操作</th></tr></thead><tbody id="ruleSetRows"></tbody></table></div>
+          <div id="ruleSetEmpty" class="empty" hidden>尚未创建规则集。</div>
+        </div>
+      </section>
+
+      <section id="packagingSection" data-section="packaging" hidden>
+        <h1 class="pageHeading">客户端安装包</h1>
+        <div class="panel packagePanel">
+          <div class="packageHeader">
+            <div><strong>Android 包生成 URL</strong><p class="muted">用户在独立下载页完成账号验证后，后端即时生成并下载包含专属加密连接配置的新安装包。</p></div>
+          </div>
+          <div class="downloadUrlRow"><code id="clientDownloadUrl"></code><a id="clientDownloadLink" href="/client" target="_blank" rel="noopener">打开下载页</a></div>
+          <p id="packageError" class="error" role="alert"></p>
+        </div>
+        <div class="panel packagePanel">
+          <div class="packageHeader"><div><strong>安装包生成记录</strong><p class="muted">记录不保存 SOCKS5 账号或密码，含凭据的 APK 只在生成响应中下载一次。</p></div><button id="refreshPackages" class="secondary" type="button">刷新</button></div>
+          <div class="tableWrap"><table><thead><tr><th>软件名</th><th>包名</th><th>大小</th><th>SHA-256</th></tr></thead><tbody id="packageRows"></tbody></table></div>
+          <div id="packageEmpty" class="empty" hidden>尚未生成客户端安装包。</div>
+        </div>
+      </section>
+
+      </div>
+    </main>
+  </div>
+
+  <dialog id="accountDialog">
+    <form id="accountForm">
+      <div class="dialogHeader"><h2 id="accountDialogTitle">新建账号</h2><button class="ghost" data-close-dialog="accountDialog" type="button">关闭</button></div>
+      <div class="dialogBody">
+        <div class="formGrid">
+          <label class="wide">账号<input id="accountUsername" required maxlength="255"></label>
+          <div class="wide"><span class="muted">密码模式</span><div class="radioLine"><label><input name="passwordMode" type="radio" value="any" checked>任意非空密码</label><label><input name="passwordMode" type="radio" value="fixed">固定密码</label></div></div>
+          <label id="fixedPasswordLabel" class="wide" hidden>固定密码<input id="accountPassword" type="password" maxlength="255" autocomplete="new-password"></label>
+          <label>共享上行（字节/秒）<input id="maxUpload" type="number" min="-1" step="1" required value="-1"></label>
+          <label>共享下行（字节/秒）<input id="maxDownload" type="number" min="-1" step="1" required value="-1"></label>
+          <label>最大连接数<input id="maxConnections" type="number" min="-1" step="1" required value="-1"></label>
+          <label>最大在线 IP<input id="maxOnlineIps" type="number" min="-1" step="1" required value="-1"></label>
+          <label class="wide">到期时间<input id="expiresAt" type="datetime-local"><span class="muted">留空表示永不过期；勾选禁用会提交特殊值 0。</span></label>
+          <label class="wide"><span><input id="accountDisabled" type="checkbox" style="width:auto"> 禁用账号</span></label>
+          <label class="wide">备注<textarea id="accountRemark" maxlength="512"></textarea></label>
+        </div>
+        <p id="accountFormError" class="error" role="alert"></p>
+      </div>
+      <div class="dialogFooter"><button class="secondary" data-close-dialog="accountDialog" type="button">取消</button><button id="saveAccountButton" type="submit">保存</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="passwordDialog">
+    <form id="passwordForm">
+      <div class="dialogHeader"><h2>修改账号密码</h2><button class="ghost" data-close-dialog="passwordDialog" type="button">关闭</button></div>
+      <div class="dialogBody"><p id="passwordAccountName"></p><div class="radioLine"><label><input name="editPasswordMode" type="radio" value="any">任意非空密码</label><label><input name="editPasswordMode" type="radio" value="fixed" checked>固定密码</label></div><label id="editFixedPasswordLabel">新密码<input id="editPassword" type="password" maxlength="255" autocomplete="new-password"></label><p id="passwordFormError" class="error" role="alert"></p></div>
+      <div class="dialogFooter"><button class="secondary" data-close-dialog="passwordDialog" type="button">取消</button><button type="submit">保存</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="batchEditDialog">
+    <form id="batchEditForm">
+      <div class="dialogHeader"><h2>批量编辑账号</h2><button class="ghost" data-close-dialog="batchEditDialog" type="button">关闭</button></div>
+      <div class="dialogBody">
+        <p id="batchEditSummary" class="muted"></p>
+        <div class="formGrid">
+          <div class="batchField"><input id="changeOnlineIps" type="checkbox" aria-label="修改最大在线 IP"><label>最大在线 IP<input id="batchOnlineIps" type="number" min="-1" step="1" value="-1" disabled></label></div>
+          <div class="batchField"><input id="changeConnections" type="checkbox" aria-label="修改最大连接数"><label>最大连接数<input id="batchConnections" type="number" min="-1" step="1" value="-1" disabled></label></div>
+          <div class="batchField"><input id="changeUpload" type="checkbox" aria-label="修改共享上行"><label>共享上行（字节/秒）<input id="batchUpload" type="number" min="-1" step="1" value="-1" disabled></label></div>
+          <div class="batchField"><input id="changeDownload" type="checkbox" aria-label="修改共享下行"><label>共享下行（字节/秒）<input id="batchDownload" type="number" min="-1" step="1" value="-1" disabled></label></div>
+          <div class="batchField wide"><input id="changeExpiration" type="checkbox" aria-label="批量加时"><label>批量加时<div class="durationFields"><input id="batchDuration" type="number" min="1" step="1" value="1" disabled><select id="batchDurationUnit" disabled><option value="86400000">天</option><option value="3600000">小时</option><option value="60000">分钟</option></select></div></label></div>
+          <p class="muted wide">加时始终以每个账号原到期时间为基准；已过期账号不会从当前时间重新计算，永不过期和禁用账号保持原状态。</p>
+        </div>
+        <p id="batchEditError" class="error" role="alert"></p>
+      </div>
+      <div class="dialogFooter"><button class="secondary" data-close-dialog="batchEditDialog" type="button">取消</button><button type="submit">保存批量修改</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="ruleSetDialog" class="ruleSetDialog">
+    <form id="ruleSetForm">
+      <div class="dialogHeader"><h2 id="ruleSetDialogTitle">新建规则集</h2><button class="ghost" data-close-dialog="ruleSetDialog" type="button">关闭</button></div>
+      <div class="dialogBody">
+        <label>规则集名称<input id="ruleSetName" required maxlength="128"></label>
+        <label>routing.txt 正文<textarea id="ruleSetContent" class="ruleSetEditor" required spellcheck="false" maxlength="1048576"></textarea></label>
+        <p class="muted">必须包含 [DNS]、[RoutingRule]、[GRoutingRule] 和 [proxy_app]。[RoutingRule] 只作用于所选应用，[GRoutingRule] 只作用于其他应用，两者可混合；VPN 与 Root 模式共用同一规则，DNS 由客户端直连指定上游。</p>
+        <p id="ruleSetFormError" class="error" role="alert"></p>
+      </div>
+      <div class="dialogFooter"><button class="secondary" data-close-dialog="ruleSetDialog" type="button">取消</button><button type="submit">保存</button></div>
+    </form>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

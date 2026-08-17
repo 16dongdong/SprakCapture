@@ -406,7 +406,7 @@ async fn httpRecordingLifecycleExposesMetadataBodyAndClear() {
         json!({}),
     )
     .await;
-    assert_eq!(startStatus, StatusCode::OK);
+    assert_eq!(startStatus, StatusCode::OK, "{startSnapshot}");
     assert_eq!(startSnapshot["listeners"]["httpProxy"]["state"], "running");
     let proxyAddress: std::net::SocketAddr =
         startSnapshot["listeners"]["httpProxy"]["boundEndpoint"]
@@ -729,7 +729,7 @@ async fn mediaPreviewStreamsValidatedRangesAndRejectsUnsafeAssembly() {
         json!({}),
     )
     .await;
-    assert_eq!(startStatus, StatusCode::OK);
+    assert_eq!(startStatus, StatusCode::OK, "{startSnapshot}");
     let proxyAddress = startSnapshot["listeners"]["httpProxy"]["boundEndpoint"]
         .as_str()
         .expect("媒体预览代理监听地址")
@@ -1237,7 +1237,7 @@ async fn partialListenerFailureKeepsAvailableProxyRunning() {
         json!({}),
     )
     .await;
-    assert_eq!(startStatus, StatusCode::OK);
+    assert_eq!(startStatus, StatusCode::OK, "{snapshot}");
     assert_eq!(snapshot["serviceState"], "running");
     assert_eq!(snapshot["listeners"]["socks5"]["state"], "running");
     assert_eq!(snapshot["listeners"]["httpProxy"]["state"], "running");
@@ -1523,7 +1523,7 @@ async fn controlLifecycleReturnsStrictRedactedSnapshot() {
         json!({}),
     )
     .await;
-    assert_eq!(startStatus, axum::http::StatusCode::OK);
+    assert_eq!(startStatus, axum::http::StatusCode::OK, "{startSnapshot}");
     assert_eq!(startSnapshot["serviceState"], "running");
     assert!(startSnapshot.get("boundEndpoint").is_none());
     assert!(startSnapshot["listeners"]["socks5"]["boundEndpoint"].is_string());

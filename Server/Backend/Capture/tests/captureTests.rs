@@ -4,10 +4,10 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use capture_core::{
     BeginTransaction, BodyStorageKind, BodyWrite, CaptureError, HeaderField, MessageSide,
-    RecordingConfiguration, RecordingLimits, RecordingLimitsUpdate, RecordingRuleConfiguration,
-    RecordingSession, RecordingSettingsUpdate, RecordingState, TransactionCompletion,
-    TransactionError, TransactionProgressUpdate, TransactionProtocol, TransactionStatus,
-    TransactionUpdate, TransactionUserUpdate, currentTimeMilliseconds,
+    RecordingConfiguration, RecordingLimits, RecordingLimitsUpdate, RecordingSession,
+    RecordingSettingsUpdate, RecordingState, TransactionCompletion, TransactionError,
+    TransactionProgressUpdate, TransactionProtocol, TransactionStatus, TransactionUpdate,
+    TransactionUserUpdate, currentTimeMilliseconds,
 };
 use location_core::{LocationPattern, ResolvedLocation};
 use tempfile::TempDir;
@@ -23,7 +23,6 @@ fn testConfiguration(temporaryDirectory: &TempDir) -> RecordingConfiguration {
             maxTotalBodyBytes: 128,
         },
         ignoreLocations: Vec::new(),
-        recordingRules: RecordingRuleConfiguration::default(),
         recordTunnelMetadata: true,
         memoryBodyThreshold: 8,
         metadataMemoryBudgetBytes: 64 * 1024 * 1024,

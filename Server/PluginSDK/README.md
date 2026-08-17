@@ -1,6 +1,6 @@
 # Sprak Capture Plugin SDK
 
-`Server/PluginSDK` 是插件作者唯一需要依赖的开发入口。SDK 把 manifest、阶段事件、动作、内存释放、
+`PluginSDK` 是插件作者唯一需要依赖的开发入口。SDK 把 manifest、阶段事件、动作、内存释放、
 请求关联和生命周期隐藏在语言适配器后面；作者只注册普通函数，函数参数是事件对象，返回值是动作对象。
 
 ## 选择语言
@@ -90,5 +90,5 @@ Python 与 TypeScript 把 `runtime.kind` 改为 `sidecar`，入口分别指向 `
 - 事件的 `serviceGeneration`、`recordingGeneration` 和 `eventId` 必须由 SDK 原样回传。
 - `observeOnly` 事件对应已经放行的副本，物理上只能观察和标注，不能修改已发送的数据包。
 
-更完整的阶段和动作说明见 [`Docs/pluginHookApi.md`](../../Docs/pluginHookApi.md)，插件架构和生命周期见
-[`Docs/features/38-pluginSystem.md`](../../Docs/features/38-pluginSystem.md)。
+更完整的阶段和动作说明见 [`Docs/pluginHookApi.md`](../Docs/pluginHookApi.md)，插件架构和生命周期见
+[`Docs/features/38-pluginSystem.md`](../Docs/features/38-pluginSystem.md)。

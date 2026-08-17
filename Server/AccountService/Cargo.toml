@@ -1,0 +1,30 @@
+[package]
+name = "account-service"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "accountService"
+path = "src/main.rs"
+
+[dependencies]
+argon2 = "0.5"
+axum = "0.8"
+base64 = "0.22"
+hmac = "0.12"
+parking_lot = "0.12"
+rand = "0.9"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

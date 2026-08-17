@@ -23,7 +23,6 @@ pub enum ToolPhase {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ToolId {
-    RecordingRules,
     BlockList,
     NoCaching,
     BlockCookies,
@@ -40,7 +39,6 @@ impl ToolId {
     /// 返回写入事务 `appliedTools` 和控制面 JSON 的稳定 camelCase 名称。
     pub const fn asStr(self) -> &'static str {
         match self {
-            Self::RecordingRules => "recordingRules",
             Self::BlockList => "blockList",
             Self::NoCaching => "noCaching",
             Self::BlockCookies => "blockCookies",
@@ -444,8 +442,6 @@ impl ToolPipeline {
 /// 返回不可重排的请求与响应工具槽；出站和 capture 由代理调用方承担，因而不作为可注册工具。
 fn toolOrder(phase: ToolPhase) -> &'static [ToolId] {
     const requestOrder: &[ToolId] = &[
-        // 录制规则必须先于所有会改写目标或生成合成响应的工具，确保用户看到的是原始请求裁决。
-        ToolId::RecordingRules,
         ToolId::BlockList,
         ToolId::NoCaching,
         ToolId::BlockCookies,

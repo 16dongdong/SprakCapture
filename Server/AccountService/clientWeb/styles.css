@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+  color: #172033;
+  background: #eef4fc;
+  --primary: #1769d2;
+  --primary-dark: #0f55ae;
+  --line: #d4dfec;
+  --muted: #627086;
+}
+
+* { box-sizing: border-box; }
+body { min-width: 320px; min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 0, #fff 0, #eef4fc 56%, #e7f0fb 100%); }
+.downloadCard { width: min(680px, 100%); display: grid; gap: 22px; padding: 34px; border: 1px solid rgb(212 223 236 / 90%); border-radius: 22px; background: rgb(255 255 255 / 88%); box-shadow: 0 24px 70px rgb(24 54 92 / 13%); backdrop-filter: blur(20px); }
+.brandMark { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 17px; color: #fff; background: linear-gradient(145deg, #2458db, #09a9c7); box-shadow: 0 10px 24px rgb(23 105 210 / 24%); font-size: 30px; font-weight: 800; }
+.eyebrow { margin: 0 0 8px; color: var(--primary); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+h1 { margin: 0; font-size: 29px; letter-spacing: -.03em; }
+.description { margin: 12px 0 0; color: var(--muted); line-height: 1.7; }
+form { display: grid; gap: 16px; }
+.fieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+label { display: grid; gap: 7px; color: #3f4e63; font-size: 13px; font-weight: 600; }
+input { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; background: #fff; color: inherit; font: inherit; outline: none; }
+input[type="file"] { padding: 7px 9px; }
+input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgb(23 105 210 / 12%); }
+.fieldHint { color: var(--muted); font-size: 12px; font-weight: 400; }
+button { min-height: 48px; border: 0; border-radius: 11px; padding: 11px 16px; color: #fff; background: var(--primary); font: inherit; font-weight: 700; cursor: pointer; }
+button:hover { background: var(--primary-dark); }
+button:disabled { cursor: wait; opacity: .62; }
+.status { min-height: 20px; margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.status.error { color: #a91d29; }
+
+@media (max-width: 520px) {
+  body { padding: 12px; }
+  .downloadCard { padding: 24px 20px; border-radius: 18px; }
+  .fieldGrid { grid-template-columns: 1fr; }
+}

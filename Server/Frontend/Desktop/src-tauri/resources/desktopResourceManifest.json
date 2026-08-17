@@ -1,4 +1,7 @@
 {
   "proxyServiceTarget": "proxyService.exe",
-  "description": "构建脚本在 Tauri 运行期间暂存后端产物，安装包将同目录资源映射到资源根目录。"
+  "accountServiceTarget": "accountService.exe",
+  "clientPackagerTarget": "clientPackager.exe",
+  "clientTemplateTarget": "clientTemplate.apk",
+  "description": "构建脚本在 Tauri 运行期间暂存两个服务、独立客户端打包器、预编译 APK 模板与 Web。"
 }

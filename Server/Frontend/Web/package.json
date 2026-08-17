@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && vite build",
     "i18n:check": "node scripts/checkI18n.mjs",
-    "test": "node scripts/checkTestLayout.mjs && tsc -p tsconfig.test.json && vitest run && node ../../../scripts/verifyWorkspaceClean.mjs",
+    "test": "node scripts/checkTestLayout.mjs && tsc -p tsconfig.test.json && vitest run && node ../../scripts/verifyWorkspaceClean.mjs",
     "test:watch": "node scripts/checkTestLayout.mjs && vitest"
   },
   "dependencies": {

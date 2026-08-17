@@ -65,7 +65,7 @@ import {
   TimingChartView,
 } from "./transactionInspectorViews";
 
-type InspectorView =
+export type InspectorView =
   "overview" | "contents" | "summary" | "chart" | "protocol" | "notes";
 type MessageView = "headers" | "preview" | "text" | "json" | "hex";
 type DetailState = LiveTransactionDetailState;
@@ -79,6 +79,7 @@ interface TransactionInspectorProps {
   transaction: TransactionSummary | null;
   selectedPacket: StreamPacketSelection | null;
   onPacketUnavailable(selection: StreamPacketSelection): void;
+  onViewChange?(view: InspectorView): void;
 }
 
 const inspectorTabs = [
@@ -1531,18 +1532,24 @@ function StreamPacketInspector({
  * 渲染右侧事务检查器；详情请求由选择标识和请求序号隔离，切换事务后不会串入旧详情。
  *
  * 运行上下文：事务、方向和单包节点共用此检查器，详情始终按当前事务标识异步读取。
- * 参数：transaction 与 selectedPacket 表示当前树选择，onPacketUnavailable 负责回写已经被滚动录制淘汰的包选择。
+ * 参数：transaction 与 selectedPacket 表示当前树选择，onPacketUnavailable 负责回写已经被滚动录制淘汰的包选择，
+ * onViewChange 把当前检查器页签同步给窗口上下文。
  * 失败语义：请求失败保留可重试状态；单包失效时由子视图回退到同方向聚合节点。
  */
 export function TransactionInspector({
   transaction,
   selectedPacket,
   onPacketUnavailable,
+  onViewChange,
 }: TransactionInspectorProps) {
   const { t } = useTranslation();
   const inspectorPanelId = useId();
   const { getProcesses } = useServiceStore();
   const [view, setView] = useState<InspectorView>("overview");
+
+  useEffect(() => {
+    onViewChange?.(view);
+  }, [onViewChange, view]);
   const [retryVersion, setRetryVersion] = useState(0);
   const [clientProcessPresentation, setClientProcessPresentation] = useState<{
     icon: string | null;

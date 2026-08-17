@@ -75,14 +75,18 @@ impl SocksTransactionProjector {
         if self.finalized.contains(&session.sessionId) {
             return Ok(());
         }
-        // CONNECT 在首段字节分类前不得生成原始流事务；HTTP/HTTPS 已由协议处理器按请求录制，
-        // 这里只保留真正的 TCP 和 UDP，避免同一传输层连接出现两条不一致的记录。
-        if !matches!(
+        // 活动 CONNECT 在首段字节分类前不得生成原始流事务；但目标已解析后的分类前失败过去
+        // 会完全消失。终态 Undetermined 现在按 TCP CONNECT 投影，已接管的 HTTP/HTTPS 失败则由
+        // 协议处理器写入精确事务并声明协议，二者不会重复。
+        let projectableTransport = matches!(
             session.applicationProtocol,
             SessionApplicationProtocol::Tcp
                 | SessionApplicationProtocol::Tls
                 | SessionApplicationProtocol::Udp
-        ) {
+        ) || (session.applicationProtocol
+            == SessionApplicationProtocol::Undetermined
+            && session.state == SessionState::Failed);
+        if !projectableTransport {
             if isTerminal(session.state) {
                 self.rememberFinalized(&session.sessionId);
             }
@@ -250,12 +254,27 @@ impl SocksTransactionProjector {
             if originalBytes == 0 || originalBytes == previousOriginalBytes {
                 continue;
             }
+            // SessionSnapshot 为避免高频流量复制正文而共享有界镜像；事件排队期间镜像可能继续增长，
+            // 但 bytesUp/bytesDown 仍代表该事件的固定水位。必须先冻结片段、再读取正文并裁到事件水位，
+            // 否则异步正文写入期间追加的新片段会引用尚未入库的范围，使终态提交永久停在等待中。
+            let mut packets = session.capturedPackets.forDirection(direction);
+            let mut bodyBytes = capturedBytes.toVec();
+            bodyBytes.truncate(usize::try_from(originalBytes).unwrap_or(usize::MAX));
+            let mut observedOriginalBytes = 0_u64;
+            packets.retain(|packet| {
+                observedOriginalBytes = observedOriginalBytes.saturating_add(packet.originalBytes);
+                observedOriginalBytes <= originalBytes
+                    && packet
+                        .storedOffsetBytes
+                        .checked_add(packet.storedBytes)
+                        .is_some_and(|end| end <= bodyBytes.len())
+            });
             self.recording
                 .storeBody(
                     transactionId,
                     side,
                     BodyWrite {
-                        bytes: capturedBytes.toVec(),
+                        bytes: bodyBytes,
                         originalBytes,
                         // SOCKS5 只保证字节流透明转发；未经过协议解码的载荷必须按二进制展示。
                         contentType: "application/octet-stream".to_owned(),
@@ -268,9 +287,7 @@ impl SocksTransactionProjector {
                 .storeStreamPackets(
                     transactionId,
                     side,
-                    session
-                        .capturedPackets
-                        .forDirection(direction)
+                    packets
                         .into_iter()
                         .map(|packet| capture_core::StreamPacket {
                             sequence: packet.sequence,
@@ -359,7 +376,7 @@ fn beginTransactionInput(session: &SessionSnapshot) -> Option<BeginTransaction> 
     let displayScheme = match session.applicationProtocol {
         SessionApplicationProtocol::Tls => "https",
         SessionApplicationProtocol::Udp => "udp",
-        SessionApplicationProtocol::Tcp => "tcp",
+        SessionApplicationProtocol::Tcp | SessionApplicationProtocol::Undetermined => "tcp",
         _ => return None,
     };
     let displayHost = if host.contains(':') {

@@ -85,7 +85,7 @@ fn processTrayEvent<R: Runtime>(trayIcon: &tauri::tray::TrayIcon<R>, event: &Tra
 }
 
 /// 执行唯一的显式退出序列；状态原子门保证托盘重复点击不会并发回收同一子进程。
-fn exitApplication<R: Runtime>(appHandle: &AppHandle<R>) {
+pub fn exitApplication<R: Runtime>(appHandle: &AppHandle<R>) {
     let desktopState = appHandle.state::<DesktopState>();
     if desktopState.beginExit() {
         if let Err(error) = desktopState.stopProxyService() {

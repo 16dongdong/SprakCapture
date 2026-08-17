@@ -352,6 +352,7 @@ async fn delayedLargeTransparentGetUsesHttpPipelineAndLogicalHost() {
             routePinned: true,
             targetPort: upstreamAddress.port(),
             cancellation: CancellationToken::new(),
+            accountLease: None,
         };
         let inspectionTask = tokio::spawn(async move { inspector.intercept(tunnel).await });
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -420,6 +421,7 @@ async fn delayedTransparentClientHelloUsesTlsAndLogicalHost() {
             routePinned: true,
             targetPort: 443,
             cancellation: CancellationToken::new(),
+            accountLease: None,
         };
         let inspectionTask = tokio::spawn(async move { inspector.intercept(tunnel).await });
         tokio::time::sleep(Duration::from_millis(250)).await;

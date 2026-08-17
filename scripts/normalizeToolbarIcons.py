@@ -35,9 +35,9 @@ def normalizeIcon(iconPath: Path) -> None:
 
 def main() -> None:
     """归一化 Web 公共目录内的全部工具栏状态图，确保同尺寸控件不会发生视觉漂移。"""
-    repositoryRoot = Path(__file__).resolve().parents[1]
+    serverRoot = Path(__file__).resolve().parents[1]
     iconDirectory = (
-        repositoryRoot / "Server" / "Frontend" / "Web" / "public" / "assets" / "toolbar"
+        serverRoot / "Frontend" / "Web" / "public" / "assets" / "toolbar"
     )
     iconPaths = sorted(iconDirectory.glob("*.png"))
     if not iconPaths:

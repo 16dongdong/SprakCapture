@@ -12,8 +12,6 @@ pub enum CaptureError {
     InvalidMemoryThreshold,
     #[error("error.capture.invalidMetadataMemoryBudget")]
     InvalidMetadataMemoryBudget,
-    #[error("error.capture.invalidRecordingRules")]
-    InvalidRecordingRules,
     #[error("error.capture.metadataMemoryBudgetExceeded")]
     MetadataMemoryBudgetExceeded,
     #[error("error.capture.sessionClosed")]
@@ -49,7 +47,6 @@ impl CaptureError {
             Self::InvalidLimits => "captureInvalidLimits",
             Self::InvalidMemoryThreshold => "captureInvalidMemoryThreshold",
             Self::InvalidMetadataMemoryBudget => "captureInvalidMetadataMemoryBudget",
-            Self::InvalidRecordingRules => "captureInvalidRecordingRules",
             Self::MetadataMemoryBudgetExceeded => "captureMetadataMemoryBudgetExceeded",
             Self::SessionClosed => "captureSessionClosed",
             Self::TransactionNotFound => "captureTransactionNotFound",
@@ -68,7 +65,6 @@ impl CaptureError {
             Self::InvalidLimits => "error.capture.invalidLimits",
             Self::InvalidMemoryThreshold => "error.capture.invalidMemoryThreshold",
             Self::InvalidMetadataMemoryBudget => "error.capture.invalidMetadataMemoryBudget",
-            Self::InvalidRecordingRules => "error.capture.invalidRecordingRules",
             Self::MetadataMemoryBudgetExceeded => "error.capture.metadataMemoryBudgetExceeded",
             Self::SessionClosed => "error.capture.sessionClosed",
             Self::TransactionNotFound => "error.capture.transactionNotFound",

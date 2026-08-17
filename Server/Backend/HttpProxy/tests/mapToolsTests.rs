@@ -177,7 +177,11 @@ async fn mapLocalShortCircuitsRealProxyTraffic() {
     upstreamTask.abort();
 }
 
-/// Map Remote 必须把真实上游改写到本地服务，同时把规则级痕迹保留在录制事务中。
+/// Map Remote 必须把真实上游改写到本地服务，在事务摘要记录最终目标，并保留规则级痕迹。
+///
+/// 运行上下文：真实代理请求以 `source.test` 进入，映射后连接本机随机端口；测试同时验证线上的
+/// Host 头、最终事务位置和原子停止。监听、转发、录制或关闭失败时直接终止测试，不接受只改写
+/// 请求但事务摘要仍指向原地址的混合状态。
 #[tokio::test]
 async fn mapRemoteRewritesRealProxyUpstream() {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
@@ -259,7 +263,8 @@ async fn mapRemoteRewritesRealProxyUpstream() {
     upstreamTask.await.expect("映射上游必须正常完成");
     let transaction = completeTransaction(&capture).await;
     assert!(transaction.flags.mappedRemote);
-    assert_eq!(transaction.host, "source.test");
+    // 事务摘要用于解释实际出站目标；原始地址仍由流水线的 originalLocation 独立保留。
+    assert_eq!(transaction.host, "127.0.0.1");
     assert!(
         transaction
             .appliedTools

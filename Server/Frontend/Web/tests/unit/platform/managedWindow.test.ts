@@ -12,29 +12,54 @@ import {
 /** 创建可观察的窗口平台夹具，集中复用桌面识别、查询和浏览器弹窗桩。 */
 function createPlatformFixture(isDesktop: boolean) {
   const lifecycle: string[] = [];
-  const managedWindow = {
-    unminimize: vi.fn(async () => {
-      lifecycle.push("unminimize");
-    }),
-    show: vi.fn(async () => {
-      lifecycle.push("show");
-    }),
-    setFocus: vi.fn(async () => {
-      lifecycle.push("setFocus");
-    }),
-    close: vi.fn(async () => {
-      lifecycle.push("close");
-    }),
+  const windows = {
+    main: {
+      unminimize: vi.fn(async () => {
+        lifecycle.push("main:unminimize");
+      }),
+      show: vi.fn(async () => {
+        lifecycle.push("main:show");
+      }),
+      hide: vi.fn(async () => {
+        lifecycle.push("main:hide");
+      }),
+      setFocus: vi.fn(async () => {
+        lifecycle.push("main:setFocus");
+      }),
+      close: vi.fn(async () => {
+        lifecycle.push("main:close");
+      }),
+    },
+    floating: {
+      unminimize: vi.fn(async () => {
+        lifecycle.push("floating:unminimize");
+      }),
+      show: vi.fn(async () => {
+        lifecycle.push("floating:show");
+      }),
+      hide: vi.fn(async () => {
+        lifecycle.push("floating:hide");
+      }),
+      setFocus: vi.fn(async () => {
+        lifecycle.push("floating:setFocus");
+      }),
+      close: vi.fn(async () => {
+        lifecycle.push("floating:close");
+      }),
+    },
   };
+  const managedWindow = windows.main;
   const platform: ManagedWindowPlatform = {
     isDesktop: () => isDesktop,
-    findManagedWindow: vi.fn(async () => managedWindow),
+    findManagedWindow: vi.fn(async (windowLabel: string) => {
+      return windowLabel === "floating" ? windows.floating : windows.main;
+    }),
     createManagedWindow: vi.fn(async () => managedWindow),
     currentManagedWindow: vi.fn(() => managedWindow),
-    openBrowserWindow: vi.fn(),
+    openBrowserWindow: vi.fn(() => true),
     closeBrowserWindow: vi.fn(),
   };
-  return { lifecycle, managedWindow, platform };
+  return { lifecycle, managedWindow, windows, platform };
 }
 
 describe("受管窗口平台边界", () => {
@@ -69,7 +94,12 @@ describe("受管窗口平台边界", () => {
     await showFloatingPanel(fixture.platform);
 
     expect(fixture.platform.findManagedWindow).toHaveBeenCalledWith("floating");
-    expect(fixture.lifecycle).toEqual(["unminimize", "show", "setFocus"]);
+    expect(fixture.lifecycle).toEqual([
+      "main:hide",
+      "floating:unminimize",
+      "floating:show",
+      "floating:setFocus",
+    ]);
     expect(fixture.platform.openBrowserWindow).not.toHaveBeenCalled();
   });
 
@@ -82,7 +112,7 @@ describe("受管窗口平台边界", () => {
     expect(fixture.platform.openBrowserWindow).toHaveBeenCalledWith(
       "/floating",
       "floatingPanel",
-      "popup=yes,width=360,height=300,resizable=yes",
+      "popup=yes,width=340,height=250,resizable=yes",
     );
   });
 
@@ -92,8 +122,33 @@ describe("受管窗口平台边界", () => {
     await showMainWindow(fixture.platform);
 
     expect(fixture.platform.findManagedWindow).toHaveBeenCalledWith("main");
-    expect(fixture.lifecycle).toEqual(["unminimize", "show", "setFocus"]);
+    expect(fixture.lifecycle).toEqual([
+      "floating:hide",
+      "main:unminimize",
+      "main:show",
+      "main:setFocus",
+    ]);
     expect(fixture.platform.openBrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("并发切换请求按顺序执行，最终只保留最后一个窗口可见", async () => {
+    const fixture = createPlatformFixture(true);
+
+    await Promise.all([
+      showFloatingPanel(fixture.platform),
+      showMainWindow(fixture.platform),
+    ]);
+
+    expect(fixture.lifecycle).toEqual([
+      "main:hide",
+      "floating:unminimize",
+      "floating:show",
+      "floating:setFocus",
+      "floating:hide",
+      "main:unminimize",
+      "main:show",
+      "main:setFocus",
+    ]);
   });
 
   it("普通浏览器只复用 connections 主窗口", async () => {
@@ -134,7 +189,11 @@ describe("受管窗口平台边界", () => {
     await showManagedRouteWindow(target, fixture.platform);
 
     expect(fixture.platform.createManagedWindow).toHaveBeenCalledWith(target);
-    expect(fixture.lifecycle).toEqual(["unminimize", "show", "setFocus"]);
+    expect(fixture.lifecycle).toEqual([
+      "main:unminimize",
+      "main:show",
+      "main:setFocus",
+    ]);
   });
 
   it("浏览器调试态用 label 复用动态业务窗口", async () => {
@@ -161,7 +220,7 @@ describe("受管窗口平台边界", () => {
   it("按运行环境关闭当前独立窗口", async () => {
     const desktopFixture = createPlatformFixture(true);
     await closeCurrentManagedWindow(desktopFixture.platform);
-    expect(desktopFixture.lifecycle).toEqual(["close"]);
+    expect(desktopFixture.lifecycle).toEqual(["main:close"]);
 
     const browserFixture = createPlatformFixture(false);
     await closeCurrentManagedWindow(browserFixture.platform);

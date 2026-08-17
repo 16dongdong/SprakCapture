@@ -3,6 +3,7 @@
   [ValidateSet("test", "check", "clippy")]
   [string]$CargoCommand,
   [string]$PackageFilter = "",
+  [string]$ExcludedPackages = "",
   [switch]$Workspace,
   [switch]$AllTargets,
   [switch]$AllFeatures,
@@ -19,7 +20,14 @@ if ($Workspace) {
     throw "--workspace 不能与 PackageFilter 同时使用。"
   }
   $cargoArguments += "--workspace"
+  foreach ($packageName in $ExcludedPackages.Split(",", [System.StringSplitOptions]::RemoveEmptyEntries)) {
+    $cargoArguments += "--exclude"
+    $cargoArguments += $packageName.Trim()
+  }
 } elseif (-not [string]::IsNullOrWhiteSpace($PackageFilter)) {
+  if (-not [string]::IsNullOrWhiteSpace($ExcludedPackages)) {
+    throw "ExcludedPackages 只能与 --workspace 一起使用。"
+  }
   foreach ($packageName in $PackageFilter.Split(",", [System.StringSplitOptions]::RemoveEmptyEntries)) {
     $cargoArguments += "-p"
     $cargoArguments += $packageName.Trim()

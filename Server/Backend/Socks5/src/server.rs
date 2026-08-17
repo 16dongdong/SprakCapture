@@ -17,6 +17,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    accountService::{AccountServiceClient, AccountServiceClientConfig, AccountTrafficLease},
     address::{AddressOverride, TargetAddress, TargetHost},
     config::{AuthenticationMode, Socks5Config},
     error::{Result, Socks5Error},
@@ -27,9 +28,10 @@ use crate::{
     },
     protocol::{
         SocksRequest, commandBind, commandConnect, commandUdpAssociate, mapIoErrorToReply,
-        negotiateAuthentication, negotiatePluginAuthentication, readRequest,
-        replyAddressTypeNotSupported, replyCommandNotSupported, replyConnectionNotAllowed,
-        replyGeneralFailure, replyHostUnreachable, replySucceeded, replyTtlExpired, writeReply,
+        negotiateAuthentication, negotiateExternalAuthentication, negotiatePluginAuthentication,
+        readRequest, replyAddressTypeNotSupported, replyCommandNotSupported,
+        replyConnectionNotAllowed, replyGeneralFailure, replyHostUnreachable, replySucceeded,
+        replyTtlExpired, writeReply,
     },
     registry::{SessionRegistry, SessionUpdate},
     relay::{RelaySession, relayBidirectional},
@@ -46,6 +48,7 @@ struct ClientContext {
     tunnelInterceptor: Option<Arc<dyn TcpTunnelInterceptor>>,
     addressOverride: Option<Arc<dyn AddressOverride>>,
     outboundConnector: Option<transport_core::OutboundConnector>,
+    accountServiceClient: Option<AccountServiceClient>,
 }
 
 /// 聚合已创建会话及客户端依赖，命令处理器共享稳定会话 ID。
@@ -208,14 +211,32 @@ pub async fn startSocks5ServerWithInterceptionAndResolver(
 ) -> Result<RunningServer> {
     startFusedProxyServer(
         config,
-        pluginHost,
-        tunnelInterceptor,
-        addressOverride,
-        None,
-        None,
-        false,
+        FusedProxyDependencies {
+            pluginHost,
+            tunnelInterceptor,
+            addressOverride,
+            protocolHandler: None,
+            outboundConnector: None,
+        },
+        FusedProxyOptions::default(),
     )
     .await
+}
+
+/// 汇总融合代理的数据面依赖；这些对象共享整个监听生命周期，并由接受循环按连接只读复用。
+pub struct FusedProxyDependencies {
+    pub pluginHost: PluginHost,
+    pub tunnelInterceptor: Option<Arc<dyn TcpTunnelInterceptor>>,
+    pub addressOverride: Option<Arc<dyn AddressOverride>>,
+    pub protocolHandler: Option<Arc<dyn PortProtocolHandler>>,
+    pub outboundConnector: Option<transport_core::OutboundConnector>,
+}
+
+/// 描述融合代理的可选启动能力；默认值保持普通单账号 SOCKS 行为，不创建内部捕获监听器。
+#[derive(Default)]
+pub struct FusedProxyOptions {
+    pub enableInternalCaptureListener: bool,
+    pub accountServiceConfig: Option<AccountServiceClientConfig>,
 }
 
 /// 绑定唯一代理端口，并按首字节把 SOCKS5 与其它连接交给独立协议状态机。
@@ -224,14 +245,37 @@ pub async fn startSocks5ServerWithInterceptionAndResolver(
 /// 失败语义：绑定失败不创建后台任务；单条非 SOCKS5 连接失败不影响接受循环。
 pub async fn startFusedProxyServer(
     config: Socks5Config,
-    pluginHost: PluginHost,
-    tunnelInterceptor: Option<Arc<dyn TcpTunnelInterceptor>>,
-    addressOverride: Option<Arc<dyn AddressOverride>>,
-    protocolHandler: Option<Arc<dyn PortProtocolHandler>>,
-    outboundConnector: Option<transport_core::OutboundConnector>,
-    enableInternalCaptureListener: bool,
+    dependencies: FusedProxyDependencies,
+    options: FusedProxyOptions,
 ) -> Result<RunningServer> {
+    let FusedProxyDependencies {
+        pluginHost,
+        tunnelInterceptor,
+        addressOverride,
+        protocolHandler,
+        outboundConnector,
+    } = dependencies;
+    let FusedProxyOptions {
+        enableInternalCaptureListener,
+        accountServiceConfig,
+    } = options;
     config.validate()?;
+    let accountServiceClient = match (&config.authenticationMode, accountServiceConfig) {
+        (AuthenticationMode::AccountService, Some(accountConfig)) => {
+            Some(AccountServiceClient::new(accountConfig)?)
+        }
+        (AuthenticationMode::AccountService, None) => {
+            return Err(Socks5Error::Configuration(
+                "账号服务认证模式缺少内部客户端配置".to_owned(),
+            ));
+        }
+        (_, Some(_)) => {
+            return Err(Socks5Error::Configuration(
+                "非账号服务认证模式不得配置内部账号客户端".to_owned(),
+            ));
+        }
+        (_, None) => None,
+    };
     let listener = TcpListener::bind(config.listenAddress()).await?;
     let boundAddress = listener.local_addr()?;
     let internalListeners = if enableInternalCaptureListener {
@@ -262,6 +306,7 @@ pub async fn startFusedProxyServer(
                 addressOverride,
                 protocolHandler,
                 outboundConnector,
+                accountServiceClient,
             },
         )
         .await;
@@ -292,6 +337,7 @@ struct AcceptLoopContext {
     addressOverride: Option<Arc<dyn AddressOverride>>,
     protocolHandler: Option<Arc<dyn PortProtocolHandler>>,
     outboundConnector: Option<transport_core::OutboundConnector>,
+    accountServiceClient: Option<AccountServiceClient>,
 }
 
 /// 运行接受循环并拥有全部会话任务；取消后不再接受新连接并立即中止现有任务。
@@ -313,6 +359,7 @@ async fn runAcceptLoop(
         addressOverride,
         protocolHandler,
         outboundConnector,
+        accountServiceClient,
     } = context;
     let mut connections = JoinSet::new();
     let hasInternalListener = internalListeners.is_some();
@@ -331,12 +378,14 @@ async fn runAcceptLoop(
                 };
                 let connectionConfig = config.clone();
                 let connectionRegistry = registry.clone();
-                let connectionCancellation = cancellation.clone();
+                // 使用服务令牌的子级，让账号租约撤销只影响当前连接而不停止整个 SOCKS5 实例。
+                let connectionCancellation = cancellation.child_token();
                 let connectionPluginHost = pluginHost.clone();
                 let connectionTunnelInterceptor = tunnelInterceptor.clone();
                 let connectionAddressOverride = addressOverride.clone();
                 let connectionProtocolHandler = protocolHandler.clone();
                 let connectionOutboundConnector = outboundConnector.clone();
+                let connectionAccountServiceClient = accountServiceClient.clone();
                 connections.spawn(async move {
                     let _connectionPermit = connectionPermit;
                     if internalCaptureConnection {
@@ -385,6 +434,7 @@ async fn runAcceptLoop(
                             tunnelInterceptor: connectionTunnelInterceptor,
                             addressOverride: connectionAddressOverride,
                             outboundConnector: connectionOutboundConnector,
+                            accountServiceClient: connectionAccountServiceClient,
                         },
                     ).await;
                 });
@@ -482,10 +532,10 @@ async fn handleSession(
             state: SessionState::Authenticating,
         },
     );
-    let username = if config.authenticationMode == AuthenticationMode::Plugin {
+    let (username, accountLease) = if config.authenticationMode == AuthenticationMode::Plugin {
         let pluginHost = session.client.pluginHost.clone();
         let connectionId = sessionId.clone();
-        negotiatePluginAuthentication(
+        let username = negotiatePluginAuthentication(
             &mut stream,
             config.readTimeout(),
             move |username, password| {
@@ -509,15 +559,42 @@ async fn handleSession(
                 }
             },
         )
-        .await?
+        .await?;
+        (username, None)
+    } else if config.authenticationMode == AuthenticationMode::AccountService {
+        let accountServiceClient = session
+            .client
+            .accountServiceClient
+            .clone()
+            .ok_or_else(|| Socks5Error::Configuration("账号服务客户端未初始化".to_owned()))?;
+        let connectionId = sessionId.clone();
+        let cancellation = session.client.cancellation.clone();
+        let lease = negotiateExternalAuthentication(
+            &mut stream,
+            config.readTimeout(),
+            move |username, password| async move {
+                accountServiceClient
+                    .authenticate(crate::accountService::AccountLeaseAuthentication {
+                        connectionId: &connectionId,
+                        username: &username,
+                        password: &password,
+                        sourceIp: peerAddress.ip(),
+                        cancellation,
+                    })
+                    .await
+            },
+        )
+        .await?;
+        (lease.username().to_owned(), Some(lease))
     } else {
-        negotiateAuthentication(
+        let username = negotiateAuthentication(
             &mut stream,
             &config.authenticationMode,
             &config.users,
             config.readTimeout(),
         )
-        .await?
+        .await?;
+        (username, None)
     };
     registry.update(
         sessionId,
@@ -529,80 +606,95 @@ async fn handleSession(
             state: SessionState::Negotiating,
         },
     );
-    let request = match readRequest(&mut stream, config.readTimeout()).await {
-        Ok(request) => request,
-        Err(error) => {
-            let replyCode = match error {
-                Socks5Error::UnsupportedAddressType(_) => replyAddressTypeNotSupported,
-                _ => replyGeneralFailure,
-            };
-            let localAddress = stream.local_addr()?;
-            let _ = writeReply(&mut stream, replyCode, localAddress).await;
-            return Err(error);
+    // 租约从认证成功即进入心跳生命周期，命令解析或目标连接失败也必须立即提交 final 释放占用。
+    let commandFuture = async {
+        let request = match readRequest(&mut stream, config.readTimeout()).await {
+            Ok(request) => request,
+            Err(error) => {
+                let replyCode = match error {
+                    Socks5Error::UnsupportedAddressType(_) => replyAddressTypeNotSupported,
+                    _ => replyGeneralFailure,
+                };
+                let localAddress = stream.local_addr()?;
+                let _ = writeReply(&mut stream, replyCode, localAddress).await;
+                return Err(error);
+            }
+        };
+        let commandName = match request.command {
+            commandConnect => "connect",
+            commandBind => "bind",
+            commandUdpAssociate => "udpAssociate",
+            other => {
+                let localAddress = stream.local_addr()?;
+                writeReply(&mut stream, replyCommandNotSupported, localAddress).await?;
+                return Err(Socks5Error::UnsupportedCommand(other));
+            }
+        };
+        let state = match request.command {
+            commandBind => SessionState::Binding,
+            commandUdpAssociate => SessionState::UdpAssociating,
+            _ => SessionState::Connecting,
+        };
+        let applicationProtocol = match request.command {
+            commandBind => SessionApplicationProtocol::Tcp,
+            commandUdpAssociate => SessionApplicationProtocol::Udp,
+            commandConnect => SessionApplicationProtocol::Undetermined,
+            _ => unreachable!("命令已在分派前校验"),
+        };
+        registry.update(
+            sessionId,
+            SessionUpdate {
+                username: None,
+                command: Some(commandName.to_owned()),
+                // UDP 请求中的地址描述客户端数据报端点而非代理目标；首个成功转发的数据报再发布真实远端。
+                targetAddress: Some(if request.command == commandUdpAssociate {
+                    String::new()
+                } else {
+                    request.destination.toString()
+                }),
+                applicationProtocol: Some(applicationProtocol),
+                state,
+            },
+        );
+        match request.command {
+            commandConnect => runConnect(stream, request, session, accountLease.clone()).await,
+            commandBind => runBind(&mut stream, request, session, accountLease.clone()).await,
+            commandUdpAssociate => {
+                let controlLocal = stream.local_addr()?;
+                runUdpAssociation(
+                    &mut stream,
+                    request.destination,
+                    UdpAssociationContext {
+                        controlPeer: peerAddress,
+                        controlLocal,
+                        config: config.clone(),
+                        addressOverride: session.client.addressOverride.clone(),
+                    },
+                    UdpAssociationSession {
+                        registry: registry.clone(),
+                        sessionId: sessionId.to_owned(),
+                        cancellation: session.client.cancellation.clone(),
+                        pluginHost: session.client.pluginHost.clone(),
+                        clientAddress: peerAddress.to_string(),
+                        accountLease: accountLease.clone(),
+                    },
+                )
+                .await
+            }
+            _ => unreachable!("命令已在分派前校验"),
         }
     };
-    let commandName = match request.command {
-        commandConnect => "connect",
-        commandBind => "bind",
-        commandUdpAssociate => "udpAssociate",
-        other => {
-            let localAddress = stream.local_addr()?;
-            writeReply(&mut stream, replyCommandNotSupported, localAddress).await?;
-            return Err(Socks5Error::UnsupportedCommand(other));
-        }
-    };
-    let state = match request.command {
-        commandBind => SessionState::Binding,
-        commandUdpAssociate => SessionState::UdpAssociating,
-        _ => SessionState::Connecting,
-    };
-    let applicationProtocol = match request.command {
-        commandBind => SessionApplicationProtocol::Tcp,
-        commandUdpAssociate => SessionApplicationProtocol::Udp,
-        commandConnect => SessionApplicationProtocol::Undetermined,
-        _ => unreachable!("命令已在分派前校验"),
-    };
-    registry.update(
-        sessionId,
-        SessionUpdate {
-            username: None,
-            command: Some(commandName.to_owned()),
-            // UDP 请求中的地址描述客户端数据报端点而非代理目标；首个成功转发的数据报再发布真实远端。
-            targetAddress: Some(if request.command == commandUdpAssociate {
-                String::new()
-            } else {
-                request.destination.toString()
-            }),
-            applicationProtocol: Some(applicationProtocol),
-            state,
+    let commandResult = match accountLease.as_ref() {
+        Some(lease) => tokio::select! {
+            result = commandFuture => result,
+            _ = lease.cancelled() => Err(Socks5Error::AuthenticationFailed),
         },
-    );
-    match request.command {
-        commandConnect => runConnect(stream, request, session).await,
-        commandBind => runBind(&mut stream, request, session).await,
-        commandUdpAssociate => {
-            let controlLocal = stream.local_addr()?;
-            runUdpAssociation(
-                &mut stream,
-                request.destination,
-                UdpAssociationContext {
-                    controlPeer: peerAddress,
-                    controlLocal,
-                    config: config.clone(),
-                    addressOverride: session.client.addressOverride.clone(),
-                },
-                UdpAssociationSession {
-                    registry: registry.clone(),
-                    sessionId: sessionId.to_owned(),
-                    cancellation: session.client.cancellation.clone(),
-                    pluginHost: session.client.pluginHost.clone(),
-                    clientAddress: peerAddress.to_string(),
-                },
-            )
-            .await
-        }
-        _ => unreachable!("命令已在分派前校验"),
+        None => commandFuture.await,
+    };
+    if let Some(lease) = accountLease {
+        lease.finish().await;
     }
+    commandResult
 }
 
 /// 建立远端 TCP 连接、发送成功响应并进入双向转发。
@@ -610,6 +702,7 @@ async fn runConnect(
     mut stream: TcpStream,
     request: SocksRequest,
     session: &SessionContext,
+    accountLease: Option<AccountTrafficLease>,
 ) -> Result<()> {
     let config = &session.client.config;
     let remoteStream = match connectTarget(
@@ -647,17 +740,31 @@ async fn runConnect(
     let clientAddress = stream.peer_addr()?;
     let targetHost = request.destination.hostString();
     let targetPort = request.destination.port;
+    // 只有进程内地址覆盖会改变逻辑目标与实际目标的对应关系。二级代理返回的
+    // `peer_addr` 是代理端点而不是最终目标，若把它交给 HTTP/TLS 接管器，重建
+    // 上游连接时会错误地直连代理端口。因此命中覆盖时固定映射 IP，其余路径继续
+    // 保留原始目标，让共享出站连接器按既有策略完成 DNS 或二级代理握手。
+    let connectHost = match &request.destination.host {
+        TargetHost::Domain(domain) => session
+            .client
+            .addressOverride
+            .as_deref()
+            .and_then(|resolver| resolver.resolveIp(domain))
+            .map_or_else(|| targetHost.clone(), |address| address.to_string()),
+        TargetHost::Ip(address) => address.to_string(),
+    };
     let tunnel = TcpTunnel {
         clientStream: stream,
         remoteStream,
         clientAddress,
         clientProcessName: None,
         clientProcessId: None,
-        connectHost: targetHost.clone(),
+        connectHost,
         targetHost,
         routePinned: false,
         targetPort,
         cancellation: session.client.cancellation.clone(),
+        accountLease: accountLease.clone(),
     };
     let disposition = match session.client.tunnelInterceptor.as_ref() {
         Some(interceptor) => interceptor.intercept(tunnel).await?,
@@ -679,6 +786,24 @@ async fn runConnect(
                 },
             );
             return Ok(());
+        }
+        TcpTunnelDisposition::Failed {
+            applicationProtocol,
+            error,
+        } => {
+            // 应用层处理器已经拥有并关闭套接字，也已经记录精确失败事务；这里只补齐会话协议后
+            // 传播失败，防止投影器把它当作未分类连接再次生成一条模糊或重复事务。
+            session.client.registry.update(
+                &session.sessionId,
+                SessionUpdate {
+                    username: None,
+                    command: None,
+                    targetAddress: None,
+                    applicationProtocol: Some(applicationProtocol),
+                    state: SessionState::Relaying,
+                },
+            );
+            return Err(error.into());
         }
         TcpTunnelDisposition::Raw {
             tunnel,
@@ -716,6 +841,7 @@ async fn runConnect(
             sessionId: session.sessionId.clone(),
             pluginHost: session.client.pluginHost.clone(),
             pluginConnection,
+            accountLease,
         },
     )
     .await?;
@@ -729,6 +855,19 @@ async fn connectTarget(
     addressOverride: Option<&dyn AddressOverride>,
     outboundConnector: Option<&transport_core::OutboundConnector>,
 ) -> Result<TcpStream> {
+    // 进程内覆盖用于规则服务回环映射和显式 DNS 工具结果，必须先于二级代理连接器生效；
+    // 否则客户端规则请求会从服务器再次访问公网地址并依赖 NAT hairpin。
+    if let TargetHost::Domain(domain) = &destination.host
+        && let Some(address) = addressOverride.and_then(|resolver| resolver.resolveIp(domain))
+    {
+        return timeout(
+            config.connectTimeout(),
+            TcpStream::connect(SocketAddr::new(address, destination.port)),
+        )
+        .await
+        .map_err(|_| Socks5Error::Timeout("覆盖目标连接"))?
+        .map_err(Socks5Error::Io);
+    }
     if let Some(outboundConnector) = outboundConnector {
         return outboundConnector
             .connect(&destination.hostString(), destination.port)
@@ -757,6 +896,7 @@ async fn runBind(
     stream: &mut TcpStream,
     request: SocksRequest,
     session: &SessionContext,
+    accountLease: Option<AccountTrafficLease>,
 ) -> Result<()> {
     let config = &session.client.config;
     let controlLocal = stream.local_addr()?;
@@ -837,6 +977,7 @@ async fn runBind(
             sessionId: session.sessionId.clone(),
             pluginHost: session.client.pluginHost.clone(),
             pluginConnection,
+            accountLease,
         },
     )
     .await?;

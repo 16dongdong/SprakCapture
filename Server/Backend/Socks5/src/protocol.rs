@@ -69,6 +69,9 @@ where
             AuthenticationMode::Plugin if methods.contains(&methodUsernamePassword) => {
                 methodUsernamePassword
             }
+            AuthenticationMode::AccountService if methods.contains(&methodUsernamePassword) => {
+                methodUsernamePassword
+            }
             _ => methodNoAcceptable,
         };
         stream.write_all(&[socksVersion, selectedMethod]).await?;
@@ -79,7 +82,10 @@ where
         if selectedMethod == methodNoAuth {
             return Ok(String::new());
         }
-        if *mode == AuthenticationMode::Plugin {
+        if matches!(
+            mode,
+            AuthenticationMode::Plugin | AuthenticationMode::AccountService
+        ) {
             return Err(Socks5Error::AuthenticationFailed);
         }
         authenticateUsernamePassword(stream, users).await
@@ -127,6 +133,47 @@ where
     })
     .await
     .map_err(|_| Socks5Error::Timeout("插件认证协商"))?
+}
+
+/// 使用 RFC1929 获取凭据并把认证结果完整交给外部账号提供器。
+///
+/// 运行上下文：账号服务需要返回租约而不只是用户名，因此该入口保留提供器的结果类型。
+/// 失败语义：提供器返回 None 时只向客户端发送标准失败状态，不泄露账号服务诊断。
+pub async fn negotiateExternalAuthentication<S, F, Fut, T>(
+    stream: &mut S,
+    readTimeout: Duration,
+    verifier: F,
+) -> Result<T>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    F: FnOnce(String, String) -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    timeout(readTimeout, async {
+        let version = stream.read_u8().await?;
+        if version != socksVersion {
+            return Err(Socks5Error::UnsupportedVersion(version));
+        }
+        let methodCount = stream.read_u8().await? as usize;
+        let mut methods = vec![0_u8; methodCount];
+        stream.read_exact(&mut methods).await?;
+        let selectedMethod = if methods.contains(&methodUsernamePassword) {
+            methodUsernamePassword
+        } else {
+            methodNoAcceptable
+        };
+        stream.write_all(&[socksVersion, selectedMethod]).await?;
+        stream.flush().await?;
+        if selectedMethod == methodNoAcceptable {
+            return Err(Socks5Error::NoAcceptableAuthentication);
+        }
+        let (username, password) = readUsernamePassword(stream).await?;
+        let authentication = verifier(username, password).await;
+        writeAuthenticationStatus(stream, authentication.is_some()).await?;
+        authentication.ok_or(Socks5Error::AuthenticationFailed)
+    })
+    .await
+    .map_err(|_| Socks5Error::Timeout("外部账号认证协商"))?
 }
 
 /// 校验 RFC1929 用户名密码子协商；失败响应固定为状态一且不泄露账户存在性。

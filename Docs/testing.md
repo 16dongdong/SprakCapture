@@ -39,7 +39,7 @@ pnpm web:test
 
 ```powershell
 pnpm desktop:check
-pnpm --dir Server/Frontend/Desktop test
+pnpm --dir Frontend/Desktop test
 ```
 
 必须覆盖：
@@ -56,5 +56,5 @@ pnpm --dir Server/Frontend/Desktop test
 
 - `src/` 只存放可发布的业务实现，不得放置 `*.test.*`、`*.spec.*`、`#[cfg(test)]` 模块、测试夹具或测试专用辅助函数。
 - Rust 每个 crate 的测试放在同级 `tests/`；跨 crate 的共享夹具放在对应 `tests/support/`。
-- Web 测试、夹具和测试初始化放在 `Server/Frontend/Web/tests/`，按 `unit/`、`support/` 分层；生产模块只能被测试导入，不能反向依赖测试实现。
+- Web 测试、夹具和测试初始化放在 `Frontend/Web/tests/`，按 `unit/`、`support/` 分层；生产模块只能被测试导入，不能反向依赖测试实现。
 - 新增测试前先运行布局检查；布局检查失败时不得将测试文件放回业务目录。

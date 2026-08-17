@@ -32,7 +32,8 @@ export default defineConfig({
     },
   },
   server: {
-    host: "127.0.0.1",
+    // 开发态默认允许局域网直接查看 Web，认证门禁仅在生产远程入口启用。
+    host: "0.0.0.0",
     port: 5173,
     // Tauri devUrl 与控制面 Origin 白名单共同依赖固定端口，端口占用必须直接失败。
     strictPort: true,

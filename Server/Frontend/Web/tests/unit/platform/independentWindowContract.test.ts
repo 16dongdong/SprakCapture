@@ -15,6 +15,7 @@ function createBrowserPlatform(): ManagedWindowPlatform {
   const managedWindow = {
     unminimize: vi.fn(async () => undefined),
     show: vi.fn(async () => undefined),
+    hide: vi.fn(async () => undefined),
     setFocus: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
   };
@@ -23,12 +24,22 @@ function createBrowserPlatform(): ManagedWindowPlatform {
     findManagedWindow: vi.fn(async () => managedWindow),
     createManagedWindow: vi.fn(async () => managedWindow),
     currentManagedWindow: vi.fn(() => managedWindow),
-    openBrowserWindow: vi.fn(),
+    openBrowserWindow: vi.fn(() => true),
     closeBrowserWindow: vi.fn(),
   };
 }
 
 describe("独立业务窗口 contract", () => {
+  it("账号管理使用独立窗口路由并固定窗口尺寸", () => {
+    expect(createIndependentWindowTarget({ kind: "accountManagement" })).toMatchObject({
+      label: "app-window-account-management",
+      path: "/window/account-management",
+      title: "SOCKS5 管理",
+      width: 1180,
+      height: 780,
+    });
+  });
+
   it("进程选择器使用独立窗口并保持与设置相同的工具栏层级", () => {
     expect(createIndependentWindowTarget({ kind: "processManager" })).toMatchObject(
       {
@@ -164,5 +175,22 @@ describe("独立业务窗口 contract", () => {
         transactionCount: 24,
       }).path,
     ).toBe("/window/dialog/clear-recording?transactionCount=24");
+  });
+
+  /** 插件 UI 使用插件 ID 唯一命名窗口，名称只用于可见标题。 */
+  it("为插件 UI 生成独立窗口路由和稳定尺寸", () => {
+    expect(
+      createIndependentWindowTarget({
+        kind: "plugin",
+        pluginId: "sample.plugin",
+        pluginName: "样例插件",
+      }),
+    ).toMatchObject({
+      label: expect.stringMatching(/^app-window-plugin-/),
+      path: "/window/plugin/sample.plugin",
+      title: "样例插件",
+      width: 960,
+      height: 720,
+    });
   });
 });

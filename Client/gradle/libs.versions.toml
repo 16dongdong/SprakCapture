@@ -1,0 +1,31 @@
+[versions]
+androidGradlePlugin = "8.13.2"
+kotlin = "2.4.10"
+composeBom = "2026.06.00"
+activityCompose = "1.13.0"
+coreKtx = "1.18.0"
+lifecycleRuntime = "2.10.0"
+lifecycleViewModelCompose = "2.10.0"
+materialIconsExtended = "1.7.8"
+junit = "4.13.2"
+json = "20240303"
+
+[libraries]
+androidxCoreKtx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidxLifecycleRuntime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntime" }
+androidxLifecycleViewModelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewModelCompose" }
+androidxActivityCompose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidxComposeBom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidxComposeUi = { module = "androidx.compose.ui:ui" }
+androidxComposeUiGraphics = { module = "androidx.compose.ui:ui-graphics" }
+androidxComposeUiTooling = { module = "androidx.compose.ui:ui-tooling" }
+androidxComposeUiToolingPreview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidxComposeMaterial3 = { module = "androidx.compose.material3:material3" }
+androidxComposeMaterialIconsExtended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
+junit = { module = "junit:junit", version.ref = "junit" }
+json = { module = "org.json:json", version.ref = "json" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlinCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -3,6 +3,7 @@ use std::{future::Future, io, net::SocketAddr, pin::Pin};
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
+use crate::accountService::AccountTrafficLease;
 use crate::model::SessionApplicationProtocol;
 
 /// 为融合监听器提供 HTTP 或透明连接的所有权接管接口。
@@ -61,6 +62,8 @@ pub struct TcpTunnel {
     pub targetPort: u16,
     /// 复用当前 SOCKS5 会话的停止信号，接管器必须在取消后结束所有协议处理任务。
     pub cancellation: CancellationToken,
+    /// 外部账号租约供接管器在应用层转发边界复用；限速与累计实现仍由核心统一维护。
+    pub accountLease: Option<AccountTrafficLease>,
 }
 
 /// 描述 TCP 隧道分类后的所有权转移结果，禁止 HTTP/HTTPS 路径与原始中继同时读取同一套接字。
@@ -71,13 +74,18 @@ pub enum TcpTunnelDisposition {
         applicationProtocol: SessionApplicationProtocol,
     },
     Handled(SessionApplicationProtocol),
+    Failed {
+        applicationProtocol: SessionApplicationProtocol,
+        error: io::Error,
+    },
 }
 
 /// 为 SOCKS5 CONNECT 提供可选的应用层分类入口。
 ///
 /// 运行上下文：核心库只认识 SOCKS5 与 TCP；宿主可在首段字节确认 HTTP 或 TLS 后接管连接，保持库不依赖特定应用协议实现。
 /// 参数：tunnel 是独占套接字所有权；返回 future 在分类完成前保持该所有权。
-/// 失败语义：future 返回错误时连接关闭；Raw 必须原样返还两端套接字并声明已识别协议，避免丢失首段字节或展示错误类型。
+/// 失败语义：分类前错误直接由 future 返回；协议处理器接管后失败必须返回 Failed 并声明协议，
+/// 使会话终态与该处理器已经写入的结构化事务保持一致，避免失败被误归为未识别 TCP 或重复录制。
 pub trait TcpTunnelInterceptor: Send + Sync {
     fn intercept(
         &self,

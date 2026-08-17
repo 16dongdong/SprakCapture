@@ -2,10 +2,10 @@
 
 | 术语 | 定义 | 代码边界 |
 |---|---|---|
-| SOCKS5 控制连接 | 客户端完成方法协商、认证并提交一个命令的 TCP 连接 | `Server/Backend/Socks5` |
-| 数据中继 | `CONNECT`、`BIND` 或 `UDP ASSOCIATE` 建立的双向负载传输 | `Server/Backend/Socks5` |
+| SOCKS5 控制连接 | 客户端完成方法协商、认证并提交一个命令的 TCP 连接 | `Backend/Socks5` |
+| 数据中继 | `CONNECT`、`BIND` 或 `UDP ASSOCIATE` 建立的双向负载传输 | `Backend/Socks5` |
 | 唯一服务入口 | 配置中唯一公开的 SOCKS5 TCP 监听地址 | 后台服务配置 |
-| 控制接口 | 仅绑定回环地址的 HTTP 与 WebSocket 管理端点 | `Server/Backend/src` |
+| 控制接口 | 仅绑定回环地址的 HTTP 与 WebSocket 管理端点 | `Backend/src` |
 | 权威快照 | 后台在指定修订号下发布的服务、指标、配置和会话状态 | 前后端控制契约 |
 | 状态动作 | 根据权威服务状态执行启动或停止的单一界面动作 | `Frontend/Web` |
 | 悬浮窗口 | 显示精简状态与状态动作的第二个 Tauri 窗口 | `Frontend/Desktop` |

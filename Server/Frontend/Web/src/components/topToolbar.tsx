@@ -15,6 +15,7 @@ import i18n from "../i18n";
 import { showIndependentWindow } from "../platform/independentWindowContract";
 import { showFloatingPanel } from "../platform/managedWindow";
 import { useServiceStore } from "../state/serviceStore";
+import { shouldUseSameOriginControl } from "../api/controlEndpoint";
 import { ToolbarIcon, type ToolbarIconName } from "./toolbarIcon";
 import {
   defaultToolbarActionOrder,
@@ -231,6 +232,10 @@ export function TopToolbar({
    * 失败语义：窗口创建错误由统一窗口入口记录；本函数不会伪造设置已打开状态。
    */
   const openApplicationSettings = () => {
+    if (shouldUseSameOriginControl()) {
+      navigate("/settings/interface");
+      return;
+    }
     void openSettingsWindow("interface");
   };
 
@@ -242,6 +247,23 @@ export function TopToolbar({
     void showIndependentWindow({ kind: "processManager" }).catch(
       (error: unknown) => console.error("打开进程选择器失败", error),
     );
+  };
+
+  /** 退出唯一远程管理员会话并重新加载登录门禁；桌面与开发态不展示该入口。 */
+  const logoutRemoteManagement = async () => {
+    try {
+      const response = await fetch("/api/v1/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        console.error(`退出远程管理失败：HTTP ${response.status}`);
+        return;
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error("退出远程管理失败", error);
+    }
   };
 
   /**
@@ -541,9 +563,6 @@ export function TopToolbar({
           {t("listeners.forward.title")}
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
-        <DropdownMenu.Item onSelect={() => openToolSettings("recordingRules")}>
-          {t("tools.names.recordingRules")}
-        </DropdownMenu.Item>
         <DropdownMenu.Item onSelect={() => openToolSettings("packetFilters")}>
           {t("tools.names.packetFilters")}
         </DropdownMenu.Item>
@@ -860,6 +879,16 @@ export function TopToolbar({
                 name={toolbarReorderMode ? "reorderOn" : "reorderOff"}
               />
             </IconButton>
+            {shouldUseSameOriginControl() ? (
+              <Button
+                size="1"
+                type="button"
+                variant="soft"
+                onClick={() => void logoutRemoteManagement()}
+              >
+                {t("page.remoteLogin.logout")}
+              </Button>
+            ) : null}
           </div>
         </div>
       </header>

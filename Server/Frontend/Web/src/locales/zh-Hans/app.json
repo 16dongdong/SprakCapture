@@ -102,7 +102,14 @@
       "controlApi": "控制接口",
       "eventApi": "事件流",
       "detail": "说明",
-      "processCaptureStartFailed": "进程捕获未能加载 WinDivert。请以管理员权限运行代理服务，并确认 WinDivert64.sys 可以加载。"
+      "processCaptureStartFailed": "进程捕获未能加载 WinDivert。请以管理员权限运行代理服务，并确认 WinDivert64.sys 可以加载。",
+      "multiAccountTitle": "SOCKS5 账号服务",
+      "multiAccountDescription": "当前在线账号、连接与实时总带宽",
+      "openMultiAccountManagement": "SOCKS5 管理",
+      "onlineAccounts": "当前在线账号",
+      "accountConnections": "连接数",
+      "realtimeUpload": "实时上行带宽",
+      "realtimeDownload": "实时下行带宽"
     },
     "settings": {
       "title": "设置",
@@ -111,16 +118,33 @@
       "unavailableHint": "连接 GET /api/v1/snapshot 后再修改。",
       "description": "监听、认证、连接限制与超时配置",
       "restartHint": "应用配置会强制断开当前代理连接并重启服务。",
+      "multiAccountGroup": "远程管理",
+      "descriptionMultiAccount": "配置 Sprak Capture Web 远程访问与统一管理员凭据。",
+      "multiAccountEnabled": "启用远程管理",
+      "multiAccountEnabledHint": "开启后可通过浏览器访问完整工作台，并启用独立 SOCKS5 账号认证。",
+      "multiAccountHost": "远程监听地址",
+      "multiAccountPort": "远程管理端口",
+      "multiAccountState": "服务状态",
+      "multiAccountKeyPrefix": "API Key 指纹",
+      "multiAccountOverridesAuthentication": "独立账号认证已生效",
+      "multiAccountOverridesAuthenticationHint": "关闭远程管理后可编辑已保存的单账号认证模式。",
+      "multiAccountState_stopped": "已停止",
+      "multiAccountState_starting": "正在启动",
+      "multiAccountState_running": "运行中",
+      "multiAccountState_stopping": "正在停止",
+      "multiAccountState_faulted": "故障",
       "listenGroup": "代理设置",
       "listenHost": "监听地址",
       "listenPort": "监听端口",
       "udpBindHost": "UDP 绑定地址",
       "udpBindHostPlaceholder": "留空时跟随监听策略",
+      "startServiceOnLaunch": "启动时自动开启服务",
+      "startServiceOnLaunchHint": "控制程序启动后立即开启 HTTP / SOCKS5 监听；启动失败时保留设置界面并显示故障。",
       "authenticationGroup": "认证",
       "authenticationMode": "认证模式",
       "authenticationNone": "无需认证",
       "authenticationPassword": "用户名与密码",
-    "authenticationPlugin": "插件接管",
+      "authenticationPlugin": "插件接管",
       "username": "用户名",
       "newPassword": "新密码",
       "capacityGroup": "容量与超时",
@@ -169,7 +193,23 @@
       "mcpEnabled": "启用 MCP",
       "mcpEnabledHint": "仅监听本机回环地址，配置会保存到安装目录的数据配置文件。",
       "mcpPort": "MCP 端口",
-      "mcpEndpoint": "连接地址"
+      "mcpEndpoint": "连接地址",
+      "managementIdentityGroup": "管理员账号配置",
+      "managementIdentityWarning": "修改管理员账号或密码会轮换 API Key，并使现有管理会话失效。",
+      "managementCurrentUsername": "当前管理员账号",
+      "managementNewUsername": "新管理员账号",
+      "managementNewPassword": "新管理员密码",
+      "managementUpdateIdentity": "保存管理员配置",
+      "managementApiKeyGroup": "自动化 API Key",
+      "managementApiKeyHint": "API Key 由当前管理员凭据确定性派生，完整 Key 不会写入快照或日志。",
+      "managementGetApiKey": "获取并复制 API Key",
+      "managementApiKeyResult": "API Key",
+      "managementApiKeyOneTimeHint": "完整 Key 仅在此对话框中显示。",
+      "managementFullApiKey": "完整 API Key",
+      "managementApiKeyCopied": "API Key 已复制",
+      "managementCopyApiKey": "复制 API Key",
+      "managementDone": "完成",
+      "managementCloseSecret": "关闭"
     },
     "processManager": {
       "title": "进程管理",
@@ -187,10 +227,26 @@
       "running": "正在运行 · PID {{pids}}",
       "notRunning": "当前未运行，路径已记住",
       "remove": "移除 {{path}}"
+    },
+    "accountManagement": {
+      "title": "账号管理",
+      "loading": "正在建立账号管理会话…"
+    },
+    "remoteLogin": {
+      "title": "Sprak Capture 远程管理",
+      "description": "使用与 SOCKS5 账号管理相同的管理员凭据登录。",
+      "checking": "正在检查登录状态…",
+      "username": "管理员账号",
+      "password": "管理员密码",
+      "submit": "登录",
+      "submitting": "正在登录…",
+      "failed": "登录失败，请检查账号和密码。",
+      "logout": "退出登录"
     }
   },
   "floating": {
     "openMainWindow": "打开主窗口",
+    "close": "关闭悬浮面板",
     "controlConnected": "控制接口已连接",
     "controlDisconnected": "控制接口未连接",
     "disconnected": "未连接",
@@ -621,7 +677,6 @@
     },
     "names": {
       "blockList": "屏蔽列表",
-      "recordingRules": "录制规则集",
       "noCaching": "无缓存",
       "blockCookies": "阻止 Cookie",
       "mapLocal": "映射本地",
@@ -633,50 +688,6 @@
       "autoSave": "自动保存",
       "dnsSpoofing": "DNS 映射",
       "packetFilters": "封包滤镜"
-    },
-    "recordingRules": {
-      "title": "录制规则集",
-      "defaultAction": "未命中时",
-      "orderHint": "按显示顺序执行首条命中规则；应用后无需重启服务。",
-      "addSet": "添加规则集",
-      "removeSet": "删除规则集",
-      "empty": "暂无规则集。点击“添加规则集”开始配置。",
-      "defaultSetName": "规则集 {{sequence}}",
-      "setName": "规则集名称",
-      "ruleDialogTitle": "添加录制规则",
-      "condition": "匹配条件",
-      "value": "匹配值",
-      "action": "执行动作",
-      "rejectHint": "REJECT 可阻断 HTTP、HTTPS 和 WinDivert 透明 TCP；被动观察的 UDP 只停止录制，不改写原始数据报。",
-      "actions": {
-        "record": "录制",
-        "doNotRecord": "不录制",
-        "reject": "拒绝"
-      },
-      "kinds": {
-        "domain": "完整域名",
-        "domainSuffix": "域名后缀",
-        "domainKeyword": "域名关键字",
-        "destinationIpCidr": "目标 IP/CIDR",
-        "clientIpCidr": "客户端 IP/CIDR",
-        "port": "目标端口",
-        "processName": "进程名称",
-        "protocol": "协议",
-        "method": "HTTP 方法",
-        "match": "全部流量"
-      },
-      "placeholders": {
-        "domain": "example.com",
-        "domainSuffix": "example.com",
-        "domainKeyword": "music",
-        "destinationIpCidr": "192.0.2.0/24",
-        "clientIpCidr": "127.0.0.1/32",
-        "port": "443 或 8000-9000",
-        "processName": "example.exe",
-        "protocol": "http、https、tcp 或 udp",
-        "method": "GET",
-        "match": "无需填写"
-      }
     },
     "export": {
       "title": "导出录制会话",
@@ -989,6 +1000,12 @@
     "open": "插件",
     "title": "插件",
     "description": "安装、启用并配置本地 Native 插件。流量热路径始终在宿主进程内执行。",
+    "openWindow": "打开插件窗口",
+    "windowDescription": "插件 UI 在自己的独立窗口中打开，不占用主工作区。",
+    "windowEyebrow": "插件窗口",
+    "windowTitle": "插件",
+    "closeWindow": "关闭",
+    "noWindowUi": "此插件未声明独立配置 UI。",
     "refresh": "刷新插件列表",
     "install": "安装插件包…",
     "loading": "正在加载插件…",
@@ -1019,5 +1036,13 @@
       "failed": "失败",
       "incompatible": "不兼容"
     }
+  },
+  "desktopClose": {
+    "title": "关闭主窗口",
+    "question": "是否进入托盘运行？",
+    "remember": "记住我的选择",
+    "yes": "是",
+    "no": "否",
+    "processing": "正在处理"
   }
 }

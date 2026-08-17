@@ -1,5 +1,5 @@
 import { Languages } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -7,6 +7,7 @@ import {
   changeLocalePreference,
   type LocalePreference,
   readLocalePreference,
+  subscribeLocalePreference,
   supportedLocales,
 } from "../i18n";
 
@@ -26,6 +27,8 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
   const [preference, setPreference] = useState<LocalePreference>(
     readLocalePreference,
   );
+
+  useEffect(() => subscribeLocalePreference(setPreference), []);
 
   /**
    * 先更新受控选择值再切换运行时语言；异步资源已静态加载，不会产生中间裸键。

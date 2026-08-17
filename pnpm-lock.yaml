@@ -8,13 +8,13 @@ importers:
 
   .: {}
 
-  Server/Frontend/Desktop:
+  Frontend/Desktop:
     devDependencies:
       '@tauri-apps/cli':
         specifier: 2.11.4
         version: 2.11.4
 
-  Server/Frontend/Web:
+  Frontend/Web:
     dependencies:
       '@radix-ui/themes':
         specifier: 3.3.0

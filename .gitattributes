@@ -29,7 +29,7 @@
 *.pyd binary
 AGENTS.md export-ignore
 codex.md export-ignore
-Docs/Plan export-ignore
-ReviewArtifacts export-ignore
+Server/Docs/Plan export-ignore
+Server/ReviewArtifacts export-ignore
 Server/Skill export-ignore
 CharlesUI export-ignore

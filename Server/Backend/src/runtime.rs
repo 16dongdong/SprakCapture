@@ -55,6 +55,10 @@ pub async fn runControlService() {
             std::process::exit(1);
         }
     };
+    if let Err(error) = state.startServiceIfConfigured().await {
+        // 自动启动失败时保留控制接口，用户仍可从设置页修正监听地址、端口或系统权限。
+        eprintln!("代理服务自动启动失败：{}", error.message());
+    }
     println!("Sprak Capture 控制接口已监听：http://{actualAddress}");
     let (shutdownSender, shutdownReceiver) = watch::channel(false);
     let shutdownState = state.clone();
@@ -80,6 +84,7 @@ pub async fn runControlService() {
     shutdownTask.abort();
     let _ = shutdownTask.await;
     let stopResult = state.stopService().await;
+    let accountStopResult = state.stopAccountService().await;
     if serveResult.is_none() {
         eprintln!("控制接口排空超过 1 秒，已关闭残留控制连接");
     }
@@ -89,6 +94,10 @@ pub async fn runControlService() {
     }
     if let Err(error) = stopResult {
         eprintln!("SOCKS5 服务关闭失败：{}", error.message());
+        std::process::exit(1);
+    }
+    if let Err(error) = accountStopResult {
+        eprintln!("账号管理服务关闭失败：{}", error.message());
         std::process::exit(1);
     }
 }

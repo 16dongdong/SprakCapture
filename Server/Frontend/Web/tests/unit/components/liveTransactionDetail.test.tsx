@@ -14,7 +14,11 @@ vi.mock("@/state/serviceStore", () => ({
   useServiceStore: () => ({ getLiveTransactionDetail }),
 }));
 
-/** 鍒涘缓鍙敱娴嬭瘯绮剧‘瀹屾垚鐨?Promise锛屽鐜伴珮棰戜簨浠惰秴杩囨湰鍦拌鎯呰姹傞€熷害鐨勭湡瀹炴椂搴忋€?*/
+/**
+ * 创建由测试显式完成的 Promise，用于复现高频事件快于详情请求的时序。
+ *
+ * 函数无输入，返回 Promise 与唯一完成回调；测试若未调用回调，请求会保持挂起而不是伪造结果。
+ */
 function deferred<Value>() {
   let resolve!: (value: Value) => void;
   const promise = new Promise<Value>((complete) => {
@@ -23,7 +27,11 @@ function deferred<Value>() {
   return { promise, resolve };
 }
 
-/** 鎸夋憳瑕佹瀯閫犳渶灏忓畬鏁磋鎯咃紱revision 鐢ㄤ簬鏂█鏈€缁堟覆鏌撶殑鏄渶鏂拌ˉ璇荤粨鏋溿€?*/
+/**
+ * 根据事务摘要和修订号构造最小完整详情，供实时详情钩子的时序断言使用。
+ *
+ * `transaction` 是当前摘要，`revision` 标识补读版本；夹具没有失败分支，缺失字段由类型检查直接拒绝。
+ */
 function createDetail(
   transaction: TransactionSummary,
   revision: number,
@@ -40,7 +48,11 @@ function createDetail(
   };
 }
 
-/** 娓叉煋瀹炴椂璇︽儏鐘舵€侊紱ready 鍐呭鍦ㄥ悗鍙拌ˉ璇绘湡闂村繀椤绘寔缁瓨鍦ㄣ€?*/
+/**
+ * 渲染指定事务的实时详情状态，验证后台补读期间既有 ready 内容不会退回 loading。
+ *
+ * `transaction` 决定查询标识和修订；钩子错误会按自身状态直接渲染，测试不会吞掉异常状态。
+ */
 function DetailProbe({ transaction }: { transaction: TransactionSummary }) {
   const state = useLiveTransactionDetail({
     enabled: true,
@@ -54,8 +66,8 @@ function DetailProbe({ transaction }: { transaction: TransactionSummary }) {
   );
 }
 
-describe("瀹炴椂浜嬪姟璇︽儏璇诲彇", () => {
-  it("楂橀鎽樿鍙樺寲鍚堝苟涓轰竴涓渶鏂拌ˉ璇讳笖鍒锋柊鏈熼棿涓嶉棯鍥?loading", async () => {
+describe("实时事务详情读取", () => {
+  it("合并高频摘要变化并只补读最新版本且刷新期间不闪回 loading", async () => {
     const firstRequest = deferred<TransactionDetail>();
     const latestRequest = deferred<TransactionDetail>();
     getLiveTransactionDetail

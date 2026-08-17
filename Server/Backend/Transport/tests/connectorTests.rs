@@ -8,6 +8,11 @@ use tokio::{
 };
 use transport_core::{OutboundConnector, UpstreamProxyConfiguration, UpstreamProxyProtocol};
 
+/// 构造关闭二级代理的直连配置；目标域名应由统一连接器在本机并行解析。
+fn directConfiguration() -> UpstreamProxyConfiguration {
+    UpstreamProxyConfiguration::default()
+}
+
 /// 构造启用状态的二级代理配置，测试只覆盖线协议，不在夹具中复用生产凭据。
 fn upstreamConfiguration(protocol: UpstreamProxyProtocol, port: u16) -> UpstreamProxyConfiguration {
     UpstreamProxyConfiguration {
@@ -123,4 +128,27 @@ async fn socks5ConnectUsesRemoteDomainResolution() {
     stream.read_exact(&mut ready).await.expect("读取隧道数据");
     assert_eq!(&ready, b"ready");
     server.await.expect("等待夹具");
+}
+
+/// 验证直连域名存在 IPv4/IPv6 等多个候选时仍能选中实际可达监听器，不被首个失败地址阻塞。
+#[tokio::test]
+async fn directConnectUsesReachableResolvedAddress() {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("绑定 IPv4 夹具");
+    let port = listener.local_addr().expect("读取夹具地址").port();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("接受直连连接");
+        stream.write_all(b"ready").await.expect("发送直连响应");
+    });
+    let connector = OutboundConnector::new(directConfiguration(), Duration::from_secs(2))
+        .expect("构建直连连接器");
+    let mut stream = connector
+        .connect("localhost", port)
+        .await
+        .expect("应选中 localhost 的可达 IPv4 地址");
+    let mut ready = [0_u8; 5];
+    stream.read_exact(&mut ready).await.expect("读取直连响应");
+    assert_eq!(&ready, b"ready");
+    server.await.expect("等待直连夹具");
 }

@@ -1,6 +1,5 @@
 import {
   createContext,
-  type PropsWithChildren,
   type MutableRefObject,
   useCallback,
   useContext,
@@ -48,6 +47,10 @@ import {
   type MessageSide,
   type ConfigurationUpdate,
   type McpConfiguration,
+  type ManagementApiKeyResponse,
+  type ManagementIdentity,
+  type ManagementSessionResponse,
+  type MultiAccountPublicState,
   type ExportRequest,
   type EventMessage,
   type MapLocalConfiguration,
@@ -56,7 +59,6 @@ import {
   type NoCachingConfiguration,
   type PacketFilterConfiguration,
   type RewriteConfiguration,
-  type RecordingRuleConfiguration,
   type ServiceSnapshot,
   type SslConfiguration,
   type ClientCertificateUpdate,
@@ -78,167 +80,13 @@ import {
 import i18n from "../i18n";
 import { mergeServiceEvent } from "./serviceEventReducer";
 import { createTransactionDetailRepository } from "./transactionDetailRepository";
-
-type ControlConnectionState = "connecting" | "connected" | "disconnected";
-
-/**
- * 标识当前唯一控制写入的归属区域。
- *
- * 运行上下文：控制面一次只允许一个写入请求，归属字段让工具栏只反馈发起操作的控件，避免无关控件在请求期间一起变灰或改变文案。
- * 失败语义：空值表示没有占用写入槽位；未知归属不会进入类型系统，因此不会意外解除互斥。
- */
-type ControlActionScope =
-  | "service"
-  | "recording"
-  | "recordingClear"
-  | "configuration"
-  | "mcp"
-  | "ssl"
-  | "sslRoot"
-  | "sslClientCertificate"
-  | "tool"
-  | "breakpoint"
-  | "repeat"
-  | "plugin";
-
-interface ServiceStoreState {
-  snapshot: ServiceSnapshot | null;
-  controlConnection: ControlConnectionState;
-  eventConnection: EventConnectionState;
-  connectionMessage: string;
-  actionPending: boolean;
-  activeAction: ControlActionScope | null;
-  lastError: string | null;
-  suspendedBreakpoints: SuspendedBreakpoint[];
-}
-
-interface ServiceStoreValue extends ServiceStoreState {
-  refresh(): Promise<void>;
-  listTransactions(
-    page?: TransactionPageRequest,
-    signal?: AbortSignal,
-  ): Promise<TransactionPage>;
-  toggleService(): Promise<void>;
-  toggleRecording(): Promise<void>;
-  clearRecording(): Promise<void>;
-  getTransactionDetail(
-    transactionId: string,
-    signal?: AbortSignal,
-  ): Promise<TransactionDetail>;
-  getLiveTransactionDetail(
-    transactionId: string,
-    revision: string,
-    signal?: AbortSignal,
-  ): Promise<TransactionDetail>;
-  getTransactionBody(
-    transactionId: string,
-    side: MessageSide,
-    signal?: AbortSignal,
-  ): Promise<EncodedBodyResponse>;
-  getResponseMediaPreview(
-    transactionId: string,
-    signal?: AbortSignal,
-  ): Promise<MediaPreviewBody>;
-  decodeProtobuf(
-    transactionId: string,
-    side: MessageSide,
-    signal?: AbortSignal,
-  ): Promise<DecodedProtobufView>;
-  getProtobufConfiguration(
-    signal?: AbortSignal,
-  ): Promise<ProtobufConfiguration>;
-  getValidateConfiguration(
-    signal?: AbortSignal,
-  ): Promise<ValidateConfiguration>;
-  validateResponse(
-    transactionId: string,
-    request: ValidateRequest,
-    signal?: AbortSignal,
-  ): Promise<ValidationReport>;
-  getValidationReports(
-    transactionId: string,
-    signal?: AbortSignal,
-  ): Promise<ValidationReport[]>;
-  composeRequest(request: ComposeRequest): Promise<ComposeResult | null>;
-  repeatTransaction(
-    transactionId: string,
-    overrides?: ComposeRequestOverrides,
-  ): Promise<ComposeResult | null>;
-  startAdvancedRepeat(
-    request: AdvancedRepeatStartRequest,
-  ): Promise<AdvancedRepeatJob | null>;
-  getAdvancedRepeat(jobId: string): Promise<AdvancedRepeatJob>;
-  cancelAdvancedRepeat(jobId: string): Promise<AdvancedRepeatJob | null>;
-  updateConfiguration(update: ConfigurationUpdate): Promise<void>;
-  updateMcpConfiguration(configuration: McpConfiguration): Promise<void>;
-  getProcesses(signal?: AbortSignal): Promise<ProcessSelectionSnapshot>;
-  updateProcessSelection(
-    update: ProcessSelectionUpdate,
-    signal?: AbortSignal,
-  ): Promise<ProcessSelectionSnapshot>;
-  listPlugins(signal?: AbortSignal): Promise<PluginSnapshot[]>;
-  getPluginDetails(
-    pluginId: string,
-    signal?: AbortSignal,
-  ): Promise<PluginDetails>;
-  setPluginEnabled(pluginId: string, enabled: boolean): Promise<boolean>;
-  updatePluginConfiguration(
-    pluginId: string,
-    update: PluginConfigurationUpdate,
-  ): Promise<PluginDetails | null>;
-  reloadPlugin(pluginId: string): Promise<boolean>;
-  installPluginPackage(packageFile: File): Promise<boolean>;
-  uninstallPlugin(pluginId: string): Promise<boolean>;
-  updateSsl(update: SslConfiguration): Promise<boolean>;
-  regenerateSslRoot(): Promise<boolean>;
-  exportSslRoot(format: "pem" | "cer"): Promise<Blob>;
-  importClientCertificate(
-    input: ClientCertificateImportSelection,
-  ): Promise<boolean>;
-  updateClientCertificate(
-    id: string,
-    update: ClientCertificateUpdate,
-  ): Promise<boolean>;
-  removeClientCertificate(id: string): Promise<boolean>;
-  updateBlockList(update: BlockListConfiguration): Promise<boolean>;
-  updateRecordingRules(update: RecordingRuleConfiguration): Promise<boolean>;
-  updatePacketFilters(update: PacketFilterConfiguration): Promise<boolean>;
-  updateNoCaching(update: NoCachingConfiguration): Promise<boolean>;
-  updateBlockCookies(update: BlockCookiesConfiguration): Promise<boolean>;
-  updateDnsSpoofing(update: DnsSpoofingConfiguration): Promise<boolean>;
-  updateMapLocal(update: MapLocalConfiguration): Promise<boolean>;
-  importMapLocalFiles(
-    selection: MapLocalImportSelection,
-  ): Promise<MapLocalImportResult | null>;
-  updateMapRemote(update: MapRemoteConfiguration): Promise<boolean>;
-  updateRewrite(update: RewriteConfiguration): Promise<boolean>;
-  updateBreakpoints(update: BreakpointsConfiguration): Promise<boolean>;
-  updateThrottling(update: ThrottlingConfiguration): Promise<boolean>;
-  updateProtobufConfiguration(
-    update: ProtobufConfigurationUpdate,
-  ): Promise<boolean>;
-  uploadProtobufDescriptor(upload: ProtobufDescriptorUpload): Promise<boolean>;
-  updateMirror(update: MirrorConfiguration): Promise<boolean>;
-  updateAutoSave(update: AutoSaveConfiguration): Promise<boolean>;
-  saveAutoSaveNow(): Promise<boolean>;
-  updateReverseProxies(update: ReverseProxyEntry[]): Promise<boolean>;
-  updatePortForwards(update: PortForwardEntry[]): Promise<boolean>;
-  getReverseProxies(): Promise<AuxiliaryListenerPublicState>;
-  getPortForwards(): Promise<AuxiliaryListenerPublicState>;
-  refreshSuspendedBreakpoints(): Promise<void>;
-  continueBreakpoint(
-    transactionId: string,
-    draft: SuspendedBreakpoint["draft"],
-  ): Promise<boolean>;
-  abortBreakpoint(transactionId: string): Promise<boolean>;
-  exportRecording(request: ExportRequest): Promise<Blob>;
-}
-
-interface ServiceProviderProps extends PropsWithChildren {
-  controlClient?: ControlClient;
-  eventClient?: EventStreamClient;
-  broadcastChannelFactory?: (name: string) => BroadcastChannel;
-}
+import type {
+  ControlActionScope,
+  ControlConnectionState,
+  ServiceProviderProps,
+  ServiceStoreState,
+  ServiceStoreValue,
+} from "./serviceStoreContract";
 
 type StoreAction =
   | { type: "snapshot"; snapshot: ServiceSnapshot }
@@ -838,18 +686,20 @@ function useServiceMutations(
         isControlActionReady,
       );
       if (currentState === null) {
-        return;
+        return false;
       }
       try {
         coordinator.acceptSnapshot(
           await controlClient.updateConfiguration(update),
           currentState.snapshot?.serverInstanceId,
         );
+        return true;
       } catch (error) {
         runtime.dispatchAction({
           type: "error",
           message: describeError(error),
         });
+        return false;
       } finally {
         finishControlAction(runtime, "configuration");
       }
@@ -877,6 +727,89 @@ function useServiceMutations(
     },
     [controlClient, coordinator, runtime],
   );
+
+  /** 执行管理员身份或 Key 的短生命周期请求；读取不占用全局写槽，避免页面初次加载被快照初始化拦截。 */
+  const executeManagementRequest = useCallback(
+    async <Result,>(operation: () => Promise<Result>): Promise<Result | null> => {
+      const currentState = beginControlAction(runtime, "configuration", isControlActionReady);
+      if (currentState === null) {
+        return null;
+      }
+      try {
+        return await operation();
+      } catch (error) {
+        runtime.dispatchAction({ type: "error", message: describeError(error) });
+        return null;
+      } finally {
+        finishControlAction(runtime, "configuration");
+      }
+    },
+    [runtime],
+  );
+
+  /** 按需读取脱敏管理员身份；服务不可用时返回 null 并复用全局错误展示。 */
+  const getManagementIdentity = useCallback(
+    async () => {
+      try {
+        return await controlClient.getManagementIdentity();
+      } catch (error) {
+        runtime.dispatchAction({ type: "error", message: describeError(error) });
+        return null;
+      }
+    },
+    [controlClient, runtime],
+  );
+
+  /**
+   * 读取账号服务局部快照供概览按秒刷新；正常取消不写入全局错误，其他失败保留控制面诊断。
+   */
+  const getMultiAccountState = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        return await controlClient.getMultiAccountState(signal);
+      } catch (error) {
+        if (signal?.aborted) {
+          return null;
+        }
+        runtime.dispatchAction({ type: "error", message: describeError(error) });
+        return null;
+      }
+    },
+    [controlClient, runtime],
+  );
+
+  /** 修改管理员凭据；新 Key 仅由发起对话框接收，Store 不保存响应正文。 */
+  const updateManagementIdentity = useCallback(
+    (username: string, password: string) =>
+      executeManagementRequest(() =>
+        controlClient.updateManagementIdentity(username, password),
+      ),
+    [controlClient, executeManagementRequest],
+  );
+
+  /** 读取当前凭据派生的完整 Key；返回值只允许停留在当前对话框内存。 */
+  const getManagementApiKey = useCallback(
+    () => executeManagementRequest(() => controlClient.getManagementApiKey()),
+    [controlClient, executeManagementRequest],
+  );
+
+  /**
+   * 创建账号管理窗口的一次性会话；该请求必须绕过工作台动作锁，
+   * 因为独立窗口启动时快照尚未完成，若等待工作台就绪会永久停留在加载态。
+   * 请求失败由页面显示控制面错误，不伪造已建立会话。
+   */
+  const createManagementSession = useCallback(
+    async () => {
+      try {
+        return await controlClient.createManagementSession();
+      } catch (error) {
+        runtime.dispatchAction({ type: "error", message: describeError(error) });
+        return null;
+      }
+    },
+    [controlClient, runtime],
+  );
+
 
   /**
    * 实时提交 SSL 主机规则并重读完整快照；布尔结果让对话框只在成功后关闭。
@@ -1059,13 +992,6 @@ function useServiceMutations(
   const updateNoCaching = useCallback(
     (update: NoCachingConfiguration) =>
       updateTool(() => controlClient.updateNoCaching(update)),
-    [controlClient, updateTool],
-  );
-
-  /** 提交录制规则集；后端原子替换共享匹配器，现有监听器和进程捕获无需重启。 */
-  const updateRecordingRules = useCallback(
-    (update: RecordingRuleConfiguration) =>
-      updateTool(() => controlClient.updateRecordingRules(update)),
     [controlClient, updateTool],
   );
 
@@ -1392,6 +1318,11 @@ function useServiceMutations(
       clearRecording,
       updateConfiguration,
       updateMcpConfiguration,
+      getManagementIdentity,
+      getMultiAccountState,
+      updateManagementIdentity,
+      getManagementApiKey,
+      createManagementSession,
       updateSsl,
       regenerateSslRoot,
       exportSslRoot,
@@ -1399,7 +1330,6 @@ function useServiceMutations(
       updateClientCertificate,
       removeClientCertificate,
       updateBlockList,
-      updateRecordingRules,
       updatePacketFilters,
       updateNoCaching,
       updateBlockCookies,
@@ -1434,6 +1364,11 @@ function useServiceMutations(
       toggleService,
       updateConfiguration,
       updateMcpConfiguration,
+      getManagementIdentity,
+      getMultiAccountState,
+      updateManagementIdentity,
+      getManagementApiKey,
+      createManagementSession,
       updateSsl,
       regenerateSslRoot,
       exportSslRoot,
@@ -1441,7 +1376,6 @@ function useServiceMutations(
       updateClientCertificate,
       removeClientCertificate,
       updateBlockList,
-      updateRecordingRules,
       updatePacketFilters,
       updateNoCaching,
       updateBlockCookies,

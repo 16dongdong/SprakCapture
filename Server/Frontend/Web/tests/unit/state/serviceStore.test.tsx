@@ -224,11 +224,40 @@ function createControlClient(
     validatedAtMilliseconds: snapshot.revision,
   };
   return {
+    updateUiContext: async () => ({ primary: null, contexts: [] }),
     getSnapshot: async () => snapshot,
     startService: async () => snapshot,
     stopService: async () => snapshot,
     updateConfiguration,
     updateMcpConfiguration: async () => snapshot,
+    getManagementIdentity: async () => ({
+      username: "Admin",
+      credentialRevision: 1,
+      apiKeyPrefix: "sak_v1_test_••••",
+      apiKeyCreatedAt: snapshot.revision,
+    }),
+    getMultiAccountState: async () => snapshot.configuration.multiAccount,
+    updateManagementIdentity: async (username) => ({
+      identity: {
+        username,
+        credentialRevision: 2,
+        apiKeyPrefix: "sak_v1_new_••••",
+        apiKeyCreatedAt: snapshot.revision,
+      },
+      apiKey: "sak_v1_new_secret",
+    }),
+    getManagementApiKey: async () => ({
+      identity: {
+        username: "Admin",
+        credentialRevision: 1,
+        apiKeyPrefix: "sak_v1_test_••••",
+        apiKeyCreatedAt: snapshot.revision,
+      },
+      apiKey: "sak_v1_test_secret",
+    }),
+    createManagementSession: async () => ({
+      path: "/account-management/api/v1/auth/local?ticket=test-ticket",
+    }),
     getProcesses: async () => ({
       enabled: false,
       selectedPaths: [],
@@ -309,7 +338,6 @@ function createControlClient(
     validateResponse: async () => validationReport,
     getValidationReports: async () => [],
     updateBlockList: async () => snapshot.tools,
-    updateRecordingRules: async () => snapshot.tools,
     updatePacketFilters: async () => snapshot.tools,
     updateNoCaching: async () => snapshot.tools,
     updateBlockCookies: async () => snapshot.tools,
@@ -1258,11 +1286,13 @@ describe("服务状态事件合并", () => {
       credentials: null,
     };
 
+    let committed = false;
     await act(async () => {
-      await accessedStore?.updateConfiguration(completeUpdate);
+      committed = (await accessedStore?.updateConfiguration(completeUpdate)) ?? false;
     });
 
     expect(updateConfiguration).toHaveBeenCalledWith(completeUpdate);
+    expect(committed).toBe(true);
   });
 
   it("清空录制后重新读取完整快照并同步移除事务", async () => {
